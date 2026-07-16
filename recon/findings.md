@@ -23,17 +23,21 @@ feature family. `svm` is present, so plain virtualization works fine.
 
 ## Decision table row
 
-**Row 4 — "SEV disabled in BIOS": leg B blocked pending a BIOS change.**
-Cat asks Sunburst/Monogon (Tim Garcia enabled the project) to enable in BIOS:
-**SMEE + SEV + SEV-ES + SEV-SNP** (and SNP firmware / RMP init). CPU is Turin;
-SNP support is there once the BIOS switches it on.
+**UPDATE 2026-07-16 (session 3): BIOS SMEE enabled → now Row 3 (plain SEV).**
+Enabled SMEE (+ auto SEV Control) via the serial console. Post-reboot:
+`ccp: sev enabled`, `/dev/sev` present, flags `sme sev sev_es`, SEV API 1.55.
+But `kvm_amd: SEV-ES disabled (ASIDs 0-0)` and no `sev_snp` flag — plain SEV
+only. **Second BIOS pass needed for Row 1 (SNP):**
+1. CPU Common Options → **SEV-ES ASID Space Limit** — set nonzero (currently
+   0 ASIDs to ES/SNP). ES/SNP get 1..N-1, plain SEV gets N..1006. Pick N
+   (e.g. 100+) — Cat to confirm the split on this shared box.
+2. **SNP Memory (RMP Table) Coverage / SEV-SNP Support** (NBIO → SMU or
+   IOMMU/Security) enable; ensure IOMMU on.
 
-Once enabled we land in **Row 1 — "Host control + SNP capable"**, the
-strongest position: we launch BOTH legs ourselves on the same host —
-leg A = non-SEV QEMU VM, leg B = SNP CVM, identical vCPU/RAM shape, so the
-comparison differs ONLY in SEV state, and the verifiability claim is full
-SNP → AMD KDS. (This beats every guest-only scenario. The BIOS wait is
-worth it.)
+Originally **Row 4 — "SEV disabled in BIOS"** (memory encryption not enabled).
+Target remains **Row 1 — "Host control + SNP capable"**: we launch BOTH legs
+ourselves — leg A = non-SEV VM, leg B = SNP CVM, identical shape, differ ONLY
+in SEV state, full SNP → AMD KDS verifiability.
 
 Meanwhile NOT blocked: leg A serving (P2) on bare metal + in a plain VM,
 leg C (Claude proxy), leg D (zkML ladder), Solana devnet receipts.
