@@ -45,7 +45,8 @@ build/
 .ruff_cache/
 .DS_Store
 
-# Local-only run artifacts (synthetic fixtures ARE committed; live runs curated into runs/)
+# Local-only run artifacts (real, curated runs are committed under runs/; no
+# synthetic/mock fixtures exist any more — "real only" per project deviation)
 runs/_scratch/
 *.log
 
