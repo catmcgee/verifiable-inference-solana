@@ -171,5 +171,81 @@ def receipts(receipt_id: str):
     click.echo(json.dumps(_get(f"/v1/receipts/{receipt_id}"), indent=2))
 
 
+@cli.command()
+@click.option("--model", default="bitnet-2b", show_default=True)
+@click.option("--prompt", default="What is memory-bandwidth-bound inference?", show_default=True)
+@click.option("--max-tokens", default=64, show_default=True)
+@click.option("--deposit-usdc", default=1.0, show_default=True, help="channel deposit to authorize")
+def pay(model: str, prompt: str, max_tokens: int, deposit_usdc: float):
+    """Exercise the x402 session-payment flow end to end (test client).
+
+    Runs: unpaid request → 402 challenge → open channel → sign a cumulative
+    voucher → paid metered request → prints the Payment-Receipt + settlement.
+    Uses a local ed25519 signer to stand in for the on-chain channel signer.
+    """
+    import base64 as b64
+    from nacl.signing import SigningKey
+    from server.x402.session import voucher_message
+
+    def _b58(raw: bytes) -> str:
+        try:
+            from solders.pubkey import Pubkey
+            return str(Pubkey.from_bytes(raw)) if len(raw) == 32 else b64.b64encode(raw).decode()
+        except Exception:
+            return b64.b64encode(raw).decode()
+
+    body = {"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens}
+
+    # 1. unpaid → expect 402 challenge
+    r = httpx.post(f"{BASE_URL}/v1/chat/completions", json=body, timeout=600)
+    if r.status_code != 402:
+        click.echo("server is not x402-gated (VINFER_X402!=1); response was "
+                   f"{r.status_code}. The free path works:", err=True)
+        click.echo(r.json().get("x_vinfer", {}).get("metrics", r.json()))
+        return
+    ch = r.json()["accepts"][0]
+    click.echo(f"402 challenge: {ch['scheme']} on {ch['network']}, quote "
+               f"{ch['amount']['quote_micro_usdc']} micro-USDC, asset {ch['assetSymbol']}")
+
+    # 2. open a channel (local signer stands in for the on-chain authorizedSigner)
+    signer = SigningKey.generate()
+    signer_pub = bytes(signer.verify_key)
+    channel_kp = SigningKey.generate()               # channel PDA stand-in (32 bytes)
+    channel_bytes = bytes(channel_kp.verify_key)
+    channel_b58 = _b58(channel_bytes)
+    deposit_micro = int(deposit_usdc * 1_000_000)
+
+    def auth_header(payload: dict) -> dict:
+        raw = b64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+        return {"authorization": f"Payment {raw}"}
+
+    r = httpx.post(f"{BASE_URL}/v1/chat/completions", json=body, timeout=600,
+                   headers=auth_header({"action": "open", "channelId": channel_b58,
+                                        "authorizedSigner": _b58(signer_pub),
+                                        "deposit": deposit_micro}))
+    click.echo(f"open → {r.json().get('status', r.json())}")
+
+    # 3. sign a cumulative voucher covering the quote and send a paid request
+    cumulative = deposit_micro   # authorize the whole deposit
+    sig = signer.sign(voucher_message(channel_bytes, cumulative, 0)).signature
+    voucher = {"channelId": channel_b58, "cumulativeAmount": str(cumulative),
+               "expiresAt": 0, "signer": _b58(signer_pub),
+               "signature": b64.b64encode(sig).decode()}
+    r = httpx.post(f"{BASE_URL}/v1/chat/completions", json=body, timeout=600,
+                   headers=auth_header({"action": "voucher", "voucher": voucher}))
+    if r.status_code != 200:
+        click.echo(f"paid request failed [{r.status_code}]: {r.json()}", err=True)
+        sys.exit(1)
+    d = r.json()
+    click.echo("\n" + d["choices"][0]["message"]["content"])
+    m = d["x_vinfer"]["metrics"]
+    s = d["x_vinfer"]["settlement"]
+    click.echo(f"\n[{model}] {m['tokens_per_s']} tok/s · receipt {d['x_vinfer']['receipt']['receipt_id']}", err=True)
+    click.echo(f"Payment-Receipt: {r.headers.get('Payment-Receipt')}", err=True)
+    click.echo(f"settlement: quoted {s['quote_micro_usdc']} → charged "
+               f"{s['charged_micro_usdc']} (refunded {s['refunded_micro_usdc']}) micro-USDC; "
+               f"channel available {s['available_micro_usdc']}", err=True)
+
+
 if __name__ == "__main__":
     cli()

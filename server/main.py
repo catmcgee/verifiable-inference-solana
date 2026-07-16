@@ -9,17 +9,20 @@ alias used by the harness. Backends: VINFER_BACKEND=mock (default) | llama.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from server import mock_backend, registry, runtimes
 from server.attest.mock import build_attestation
 from server.receipts.signer import EnclaveSigner
+from server.x402 import middleware as x402
 
 BACKEND = os.environ.get("VINFER_BACKEND", "mock")
 REGISTRY = registry.load()
@@ -170,13 +173,20 @@ def _sign(prompt: str, text: str, model_id: str, metrics: dict, receipts: dict) 
 
 
 @app.post("/v1/chat/completions")
-async def chat_completions(req: ChatRequest):
+async def chat_completions(req: ChatRequest, request: Request):
     if req.stream:
         raise HTTPException(400, "stream=true not yet supported; poll non-stream")
-    result = await _chat(req.model, req.messages, req.max_tokens)
     prompt_repr = "\n".join(m.get("content", "") for m in req.messages)
+    # x402 session gate (no-op unless VINFER_X402=1); free endpoints stay free
+    allowed, err, meter = await x402.gate(
+        request, req.model, prompt_tokens=len(prompt_repr) // 4,
+        max_tokens=req.max_tokens, registry=REGISTRY)
+    if not allowed:
+        return err
+    result = await _chat(req.model, req.messages, req.max_tokens)
+    settlement = x402.finalize(meter, result["metrics"]["output_tokens"], req.model, REGISTRY)
     receipt = _sign(prompt_repr, result["text"], req.model, result["metrics"], app.state.receipts)
-    return {
+    resp = {
         "id": f"chatcmpl-{uuid.uuid4().hex[:20]}",
         "object": "chat.completion",
         "created": int(time.time()),
@@ -187,8 +197,15 @@ async def chat_completions(req: ChatRequest):
             "prompt_tokens": 0, "completion_tokens": result["metrics"]["output_tokens"],
             "total_tokens": result["metrics"]["output_tokens"]},
         "x_vinfer": {"metrics": result["metrics"], "receipt": receipt,
-                     "registry_hash": REGISTRY_HASH.hex()},
+                     "registry_hash": REGISTRY_HASH.hex(), "settlement": settlement},
     }
+    headers = {"X-Vinfer-Receipt-Id": receipt["receipt_id"]}
+    if settlement.get("metered"):
+        headers["Payment-Receipt"] = json.dumps({
+            "status": "success", "reference": settlement["channelId"],
+            "spent": settlement["spent_total_micro_usdc"],
+            "charged": settlement["charged_micro_usdc"]})
+    return JSONResponse(content=resp, headers=headers)
 
 
 @app.post("/v1/infer")
