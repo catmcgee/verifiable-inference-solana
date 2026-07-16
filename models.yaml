@@ -59,8 +59,8 @@
   price_per_1m_out_usdc: 96.2757
 - id: glm-5.2-q4
   runtime: llamacpp
-  weights: /home/ubuntu/models/GLM-5.2-UD-Q4_K_XL/
-  weights_sha256: null
+  weights: /home/ubuntu/models/GLM-5.2-UD-Q4_K_XL/UD-Q4_K_XL/GLM-5.2-UD-Q4_K_XL-00001-of-00011.gguf
+  weights_sha256: 6cee6514c387347c889ef4093649dd5803699477ce3c42bc4cfc2faea648bef3
   quant: UD-Q4_K_XL
   ctx_max: 131072
   chat_template: builtin
