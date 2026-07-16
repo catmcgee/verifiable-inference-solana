@@ -11,6 +11,7 @@ dependencies = [
     "jsonschema>=4.23",
     "pynacl>=1.5",
     "pyyaml>=6.0.3",
+    "solders>=0.28.0",
 ]
 
 [project.scripts]

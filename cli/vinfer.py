@@ -121,9 +121,33 @@ def verify(receipt_file: str):
             in_reg = receipt["model_hash"] in reg.values()
             step("receipt model_hash ∈ attested registry", "PASS" if in_reg else "FAIL")
 
-    step("registry PDA lookup (Solana)", "SKIPPED", "devnet posting lands in P2")
-    step("receipt ed25519 signature", "PASS" if verify_receipt(receipt) else "FAIL")
-    step("on-chain receipt record", "SKIPPED", "devnet posting lands in P2")
+    # on-chain checks (devnet read-path; enclave keys are only on-chain once
+    # register_attestation ran for them — absent PDA is reported, not failed)
+    try:
+        from cli import devnet
+
+        enclave_raw = base64.b64decode(receipt["enclave_pubkey_b64"])
+        chain = devnet.check_onchain(enclave_raw)
+        if chain is None:
+            step("registry PDA lookup (Solana devnet)", "ABSENT",
+                 "this enclave key is not registered on-chain (register_attestation not run for it)")
+        else:
+            step("registry PDA lookup (Solana devnet)", "PASS",
+                 f"grade={chain['attestation_grade']} binding_v{chain['binding_version']} slot={chain['slot']}")
+            if att and att.get("binding_version", 1) == 2 and chain["binding_version"] == 2:
+                match = chain["registry_hash"] == att.get("registry_hash")
+                step("on-chain registry_hash == served registry_hash",
+                     "PASS" if match else "FAIL")
+        step("receipt ed25519 signature", "PASS" if verify_receipt(receipt) else "FAIL")
+        if chain is not None and chain["receipt_count"] > 0:
+            found = any(devnet.check_receipt(enclave_raw, i) for i in range(min(chain["receipt_count"], 8)))
+            step("on-chain receipt record", "PASS" if found else "FAIL",
+                 f"{chain['receipt_count']} receipt(s) registered for this enclave")
+        else:
+            step("on-chain receipt record", "ABSENT", "no receipts posted for this enclave")
+    except Exception as e:
+        step("Solana devnet checks", "SKIPPED", f"rpc unavailable: {e}")
+        step("receipt ed25519 signature", "PASS" if verify_receipt(receipt) else "FAIL")
 
     click.echo("RESULT: " + ("FAIL" if failed else "OK (with skips as noted)"))
     sys.exit(1 if failed else 0)
