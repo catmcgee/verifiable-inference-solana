@@ -34,7 +34,7 @@ pub struct RegisterAttestationArgs {
     pub attestation_grade: AttestationGrade,
 }
 
-pub fn handler(ctx: Context<RegisterAttestation>, args: RegisterAttestationArgs) -> Result<()> {
+pub fn handle_register_attestation(ctx: Context<RegisterAttestation>, args: RegisterAttestationArgs) -> Result<()> {
     require!(
         args.runtime_version.len() <= MAX_RUNTIME_VERSION_LEN as usize,
         VerifiedInferenceError::RuntimeVersionTooLong

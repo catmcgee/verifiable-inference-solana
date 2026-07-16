@@ -22,13 +22,11 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = "1.0.2"
-
-[dev-dependencies]
-litesvm = "0.10.0"
-solana-message = "3.0.1"
-solana-transaction = "3.0.2"
-solana-signer = "3.0.0"
-solana-keypair = "3.0.1"
+# Modular SDK crates (same versions anchor-lang itself depends on):
+# anchor-lang 1.x no longer re-exports the instructions-sysvar load helpers
+# or the ed25519 program id, so we take them directly.
+solana-instructions-sysvar = "3.0.0"
+solana-sdk-ids = "3.1.0"
 
 
 [lints.rust]

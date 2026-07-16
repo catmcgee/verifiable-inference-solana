@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::sysvar::instructions as instructions_sysvar_module;
 
 use crate::constants::*;
 use crate::ed25519::require_ed25519_verification;
@@ -35,8 +34,8 @@ pub struct PostReceipt<'info> {
 
     /// CHECK: instructions sysvar, address-checked; introspected for the
     /// preceding ed25519-program instruction.
-    #[account(address = instructions_sysvar_module::ID)]
-    pub instructions_sysvar: AccountInfo<'info>,
+    #[account(address = solana_instructions_sysvar::ID)]
+    pub instructions_sysvar: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -57,7 +56,7 @@ pub fn receipt_message(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn handler(
+pub fn handle_post_receipt(
     ctx: Context<PostReceipt>,
     enclave_ed25519_pubkey: [u8; 32],
     prompt_hash: [u8; 32],

@@ -9,15 +9,12 @@
 //! (pubkey, message) pair is exactly the one we are recording.
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::sysvar::instructions::{
-    load_current_index_checked, load_instruction_at_checked,
-};
+use solana_instructions_sysvar::{load_current_index_checked, load_instruction_at_checked};
 
 use crate::error::VerifiedInferenceError;
 
 /// Native ed25519 program: Ed25519SigVerify111111111111111111111111111
-pub const ED25519_PROGRAM_ID: Pubkey =
-    anchor_lang::solana_program::ed25519_program::ID;
+pub const ED25519_PROGRAM_ID: Pubkey = solana_sdk_ids::ed25519_program::ID;
 
 /// Byte layout of the ed25519 program instruction data:
 ///   [0]      num_signatures (u8)

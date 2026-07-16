@@ -105,7 +105,7 @@ def make_ab_record(rng, ts, leg, model, threads, pt, ot, conc, sample_idx):
         * CTX_PENALTY[pt]
         * (1.0 - sev_tax)
     )
-    tps = noisy(rng, tps, 0.025)
+    tps = noisy(rng, tps, 0.012)  # repeated decode runs on a quiet box are ~1% stable
 
     # Prefill: bandwidth-bound too; SEV taxes it slightly less than decode.
     prefill_tps = p["prefill_tps"] * (0.55 + 0.45 * THREAD_SCALE[model][threads])
