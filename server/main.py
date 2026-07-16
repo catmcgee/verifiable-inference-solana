@@ -71,6 +71,16 @@ async def lifespan(app: FastAPI):
 
     app.state.hpke = EnclaveHpkeKey()
     app.state.receipts = {}
+    # Inside an SNP guest: request a real hardware report bound to THIS key +
+    # registry + build (REPORT_DATA = the binding hash). Grade becomes "snp"
+    # only if the hardware actually returns one — otherwise launch-only.
+    from server.attest.report import ensure_snp_report
+    import base64 as _b64
+
+    binding = hashlib.sha256(
+        _b64.b64decode(app.state.signer.pubkey_b64) + REGISTRY_HASH + SERVER_BUILD_HASH
+    ).digest()
+    ensure_snp_report(binding)
     yield
 
 

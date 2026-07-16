@@ -149,7 +149,16 @@ def verify(receipt_file: str):
 
     if att:
         if att["grade"] == "snp":
-            step("SNP report → AMD KDS (VCEK/ASK/ARK) chain", "TODO", "P3 wires the real check")
+            from cli.attest_verify import _verify_snp_report
+
+            rep = att.get("snp_report_b64")
+            if rep:
+                ok, why = _verify_snp_report(base64.b64decode(rep), att["report_data"])
+                step("SNP report → AMD KDS (VCEK/ASK/ARK) chain",
+                     "PASS" if ok else "FAIL",
+                     "hardware-signed report verified to AMD roots" if ok else why)
+            else:
+                step("SNP report → AMD KDS chain", "FAIL", "grade=snp but no report in doc")
         else:
             step(
                 "SNP report → AMD KDS chain",

@@ -17,8 +17,11 @@ inference tax climbs toward as models get larger. That is the thesis, measured.
 ## What works today
 
 - **TEE:** SEV + SEV-ES + SEV-SNP enabled on the box (BIOS recipe in LEDGER;
-  kernel 6.17). SEV-ES confidential VMs boot and are verified. (SNP *guest* boot
-  hits an upstream `guest_memfd`/APIC gap — documented; SEV-ES used for leg B.)
+  kernel 6.17). SEV-ES CVMs measured for leg B; **SNP guests boot** (fresh-built
+  AMDSEV OVMF fixed the `guest_memfd`/APIC gap) and the vinfer server runs
+  INSIDE one: live `grade=snp`, report → VCEK → ASK → ARK verified to the AMD
+  root, receipt on devnet — `vinfer verify runs/snp-receipt.json` is 10/10 PASS
+  with zero skips (solana/DEVNET-NOTES.md).
 - **Serving:** 5 models via a model registry (`models.yaml`) — BitNet b1.58-2B,
   Llama-3.1-8B Q4/Q8, Llama-3.3-70B Q4, GLM-5.2 (744B MoE). OpenAI-compatible
   `POST /v1/chat/completions`; prices derived from measured throughput.

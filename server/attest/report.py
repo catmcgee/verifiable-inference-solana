@@ -46,6 +46,40 @@ def current_grade() -> tuple[str, str]:
     return "none", f"unrecognized VINFER_SEV_MODE={sev!r}; treating as no TEE."
 
 
+def ensure_snp_report(report_data: bytes) -> str | None:
+    """Request a REAL SNP attestation report from /dev/sev-guest, with our
+    binding hash as REPORT_DATA (low 32 bytes of the 64-byte field).
+
+    Called at server startup, after the enclave key exists — the report is
+    thereby bound to THIS process's key + registry + build. Returns the report
+    path (and points VINFER_SNP_REPORT at it) or None when not in an SNP guest.
+    No fallback, no fake: if snpguest fails, grade honestly stays launch-only.
+    """
+    import subprocess
+    import tempfile
+
+    if os.environ.get("VINFER_SEV_MODE") != "snp" or not Path("/dev/sev-guest").exists():
+        return None
+    if len(report_data) != 32:
+        raise ValueError("report_data must be 32 bytes")
+    workdir = Path(tempfile.mkdtemp(prefix="vinfer-snp-"))
+    request = workdir / "request.bin"
+    report = workdir / "report.bin"
+    request.write_bytes(report_data + b"\x00" * 32)  # 64-byte REPORT_DATA field
+    try:
+        subprocess.run(
+            ["snpguest", "report", str(report), str(request)],
+            check=True, capture_output=True, timeout=30,
+        )
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        import logging
+        logging.getLogger("vinfer").warning(
+            "snpguest report failed (%s) — grade downgrades to launch-only", e)
+        return None
+    os.environ["VINFER_SNP_REPORT"] = str(report)
+    return str(report)
+
+
 def build_attestation(
     enclave_pubkey_b64: str,
     registry_hash: bytes,

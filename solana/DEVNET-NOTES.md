@@ -64,6 +64,30 @@ Gotcha repeated itself: plain `anchor deploy` died on throttled devnet RPC
 buffer) — reclaim with `solana program close --buffers`, then
 `solana program deploy --with-compute-unit-price 50 --max-sign-attempts 200`.
 
+## LIVE grade=snp — the full chain, zero skips (2026-07-16)
+
+The vinfer server now runs INSIDE the SNP CVM (`infra/launch-snp-serve.sh` on
+the box + `infra/guest-run-vinfer.sh` in-guest). At startup it requests a real
+snpguest report with REPORT_DATA = sha256(enclave_pubkey ‖ registry_hash ‖
+build) (`server/attest/report.py ensure_snp_report`), so the hardware report is
+bound to the live key. A real bitnet-2b inference produced
+`runs/snp-receipt.json`, and `scripts/register-live.ts` put it on devnet using
+the receipt's own in-enclave signature — the enclave secret never left the CVM.
+
+- enclave pubkey `27acabb7836508f93122edd32c6fbb84a1fd4d1e0b6cb72c7c9284c98b04831e`
+- attestation PDA `BX1kgfSxT1pebhbgfi3pDbSvwESvCawBfL2wiui8wuCk` — **grade Snp**,
+  binding v2, real MEASUREMENT from the report
+  - register tx `2BeSeypfrPEMz3emavzVv7ngPD47dv3wgS7vLDjK6SWApuTEHVn9fv2CcLe8wxNcM4rtchyNba4DHa1UhM4AuXdK`
+- receipt[0] PDA `Gk6g6axmCZr3vuGpWTCnzeG7jgvnLfEKdMKyqNSXTkuC`
+  - post tx `4NSFnDx89SyK9LiaBufw33YZhKK6cBxpGpK4f5MHq2AGYbg6iFxwdbnef1wiWRfhiM1SMJLuT48Adga51K5hd8qG`
+
+`vinfer verify runs/snp-receipt.json` → **10/10 PASS, zero skips**, including
+"SNP report → AMD KDS (VCEK/ASK/ARK) chain". KDS notes: Turin reports an
+**8-byte hardware ID** and a TCB layout with an FMC SPL byte — both derived
+from the report's CPUID family field in `cli/kds.py` (wrong layout → KDS 404).
+The chain check verifies report-sig←VCEK, VCEK←ASK, ASK←ARK, ARK self-sig
+(RSA-PSS) and pins the AMD subject; a flipped byte in the report FAILs.
+
 ## Devnet CU vs localnet (CU-NOTES.md)
 
 register_attestation 10,171 (devnet) vs 8,671 (localnet) — devnet higher due to
