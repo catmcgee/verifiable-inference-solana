@@ -1,0 +1,2 @@
+crw-rw---- 1 root kvm 10, 232 Jul 16 17:04 /dev/kvm
+qemu not installed

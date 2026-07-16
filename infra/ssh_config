@@ -10,8 +10,8 @@
 # plus the HostName/User below once known.
 
 Host sunburst
-    HostName FILL_ME_FROM_SUNBURST   # pending: Needs-from-Cat #1
-    User FILL_ME
+    HostName 213.239.141.40          # instance cat-verif, project Cat, sunburst.monogon.dev
+    User ubuntu
     ServerAliveInterval 30
     ServerAliveCountMax 4
     ControlMaster auto

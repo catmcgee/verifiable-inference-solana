@@ -1,0 +1,3 @@
+[    5.047077] ccp 0000:a1:00.5: enabling device (0000 -> 0002)
+[    5.051234] ccp 0000:a1:00.5: SEV: memory encryption not enabled by BIOS
+[    5.051236] ccp 0000:a1:00.5: psp enabled

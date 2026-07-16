@@ -1,0 +1,16 @@
+ 17:05:13 up 0 min,  1 user,  load average: 0.12, 0.04, 0.01
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+ubuntu      4008  100  0.0  11896  5004 ?        R    17:05   0:00 ps aux --sort=-%cpu
+root         761  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/124]
+root         767  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/125]
+root         773  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/126]
+root         779  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/127]
+root         575  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/93]
+root         581  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/94]
+root         587  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/95]
+root         593  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/96]
+root         599  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/97]
+root         605  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/98]
+root         611  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/99]
+root         617  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/100]
+root         623  2.8  0.0      0     0 ?        S    17:04   0:01 [migration/101]

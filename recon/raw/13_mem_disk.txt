@@ -1,0 +1,19 @@
+               total        used        free      shared  buff/cache   available
+Mem:           1.1Ti        14Gi       1.1Ti       2.0Mi       1.8Gi       1.1Ti
+Swap:             0B          0B          0B
+Filesystem       Size  Used Avail Use% Mounted on
+tmpfs            114G  2.0M  114G   1% /run
+efivarfs         128K   20K  104K  17% /sys/firmware/efi/efivars
+/dev/nvme0n1p1   6.8T  2.4G  6.8T   1% /
+tmpfs            567G     0  567G   0% /dev/shm
+tmpfs            5.0M     0  5.0M   0% /run/lock
+/dev/nvme0n1p16  881M   80M  739M  10% /boot
+/dev/nvme0n1p15  105M  6.2M   99M   6% /boot/efi
+tmpfs            114G   12K  114G   1% /run/user/1000
+NAME         MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+nvme0n1      259:0    0    7T  0 disk 
+├─nvme0n1p1  259:1    0    7T  0 part /
+├─nvme0n1p2  259:2    0 32.5M  0 part 
+├─nvme0n1p14 259:3    0    4M  0 part 
+├─nvme0n1p15 259:4    0  106M  0 part /boot/efi
+└─nvme0n1p16 259:5    0  913M  0 part /boot
