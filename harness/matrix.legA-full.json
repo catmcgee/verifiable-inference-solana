@@ -1,0 +1,13 @@
+{
+  "n_per_cell": 10,
+  "grid": {
+    "leg": ["A"],
+    "model": ["bitnet-2b", "8b-q4", "8b-q8", "70b-q4"],
+    "prompt_tokens": [128, 1024],
+    "output_tokens": [128],
+    "threads": [16, 32, 64, 128],
+    "concurrency": [1],
+    "input_mode": ["tls"],
+    "numa_policy": ["nps1-default"]
+  }
+}
