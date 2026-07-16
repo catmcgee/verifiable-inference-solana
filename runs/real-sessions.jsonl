@@ -1,0 +1,1 @@
+{"boot_s": 0.0, "first_attestation_s": 0.0, "kernel": "6.17.0-40-generic", "mitigations": "eIBRS; SSB via prctl; see recon/raw/14_os.txt", "model_load_s": 0.0, "session_id": "recon-baremetal-sevoff-20260716", "sev_mode": "off", "stream_triad_gbs": 357.1, "ts": "2026-07-16T00:00:00+00:00"}

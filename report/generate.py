@@ -470,8 +470,9 @@ def section_leg_c(records):
         d_vals.append(dm)
         p_vals.append(pm)
         deltas.append((pm - dm, (pe - de) / de * 100 if de else 0))
-        rows.append([f"{pt}", fmt(dm, 0), fmt(pm, 0), f"+{pm - dm:.0f}",
-                     fmt(de, 0), fmt(pe, 0), f"+{(pe - de) / de * 100:.1f}%"])
+        pct = f"+{(pe - de) / de * 100:.1f}%" if de and pe else "—"
+        rows.append([f"{pt}", fmt(dm, 0), fmt(pm, 0), f"+{pm - dm:.0f}" if pm else "—",
+                     fmt(de, 0), fmt(pe, 0), pct])
     delta_ms = med(d[0] for d in deltas)
     delta_pct = med(d[1] for d in deltas)
     svg = grouped_bar_svg(cats, [("C-direct", SEV_OFF_SLOT, d_vals), ("C-proxied (CVM)", SEV_ON_SLOT, p_vals)],
