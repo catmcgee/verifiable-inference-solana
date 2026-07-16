@@ -1,0 +1,113 @@
+{
+  "generated_from": "runs/*.jsonl",
+  "provenance": {
+    "stream_rows": "runs/legAB-stream.jsonl",
+    "sweep_rows": "runs/legA-full.jsonl (320)",
+    "inference_tax_rows": "runs/legAB-inference.jsonl (60)",
+    "leg_c_rows": "runs/legC-probe.jsonl",
+    "measured": "2026-07-16"
+  },
+  "stream_anchor": {
+    "bare_metal_gbs": 357.1,
+    "plain_vm_gbs": 346.19,
+    "sev_es_gbs": 256.1,
+    "sev_es_tax_pct": 26.0,
+    "note": "STREAM triad, 32 vCPU, identical VMs; pure-bandwidth worst case."
+  },
+  "thread_sweep": {
+    "unit": "tokens_per_s",
+    "by_model_threads": {
+      "bitnet-2b": {
+        "16": 141.909,
+        "32": 158.291,
+        "64": 136.323,
+        "128": 97.075
+      },
+      "8b-q4": {
+        "16": 60.663,
+        "32": 69.673,
+        "64": 71.504,
+        "128": 67.838
+      },
+      "8b-q8": {
+        "16": 37.38,
+        "32": 50.105,
+        "64": 53.18,
+        "128": 50.281
+      },
+      "70b-q4": {
+        "16": 7.925,
+        "32": 9.679,
+        "64": 10.316,
+        "128": 10.103
+      }
+    },
+    "note": "peaks at 32-64 threads, regresses at 128 (bandwidth wall)."
+  },
+  "inference_tax": {
+    "by_model": {
+      "bitnet-2b": {
+        "plain_vm_tok_s": 148.653,
+        "sev_es_tok_s": 153.056,
+        "tax_pct": -3.0
+      },
+      "8b-q4": {
+        "plain_vm_tok_s": 70.804,
+        "sev_es_tok_s": 69.397,
+        "tax_pct": 2.0
+      },
+      "70b-q4": {
+        "plain_vm_tok_s": 9.692,
+        "sev_es_tok_s": 9.508,
+        "tax_pct": 1.9
+      }
+    },
+    "finding": "SEV-ES inference tax ~2% flat across model sizes; far below the 26% STREAM ceiling and does NOT grow with size (encryption penalizes writes; decode is read-dominated)."
+  },
+  "models": [
+    {
+      "id": "bitnet-2b",
+      "quant": "i2_s",
+      "price_per_1m_in_usdc": 3.0636,
+      "price_per_1m_out_usdc": 12.2544
+    },
+    {
+      "id": "8b-q4",
+      "quant": "Q4_K_M",
+      "price_per_1m_in_usdc": 4.8166,
+      "price_per_1m_out_usdc": 19.2665
+    },
+    {
+      "id": "8b-q8",
+      "quant": "Q8_0",
+      "price_per_1m_in_usdc": 6.0296,
+      "price_per_1m_out_usdc": 24.1183
+    },
+    {
+      "id": "70b-q4",
+      "quant": "Q4_K_M",
+      "price_per_1m_in_usdc": 24.0689,
+      "price_per_1m_out_usdc": 96.2757
+    },
+    {
+      "id": "glm-5.2-q4",
+      "quant": "UD-Q4_K_XL",
+      "price_per_1m_in_usdc": 21.9698,
+      "price_per_1m_out_usdc": 87.8792
+    }
+  ],
+  "leg_c_api": {
+    "model": "claude-haiku-4-5-20251001",
+    "ttft_ms_median": 720.893,
+    "e2e_ms_median": 1527.983,
+    "n": 6
+  },
+  "onchain_devnet": {
+    "program_id": "Dp5LxL9XHZUVXK129rxwBafqHMg1Y29Zda2svx8vXEkx",
+    "register_attestation_cu": 10171,
+    "post_receipt_cu": 13580,
+    "batched_cu_per_receipt": 465,
+    "note": "binding v2; ~$0.0008/receipt at base fee."
+  },
+  "hpke_overhead_ms": 0.37
+}
