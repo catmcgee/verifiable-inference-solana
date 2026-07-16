@@ -130,6 +130,31 @@ a:hover {
   margin-left: auto;
 }
 
+.masthead-nav {
+  display: flex;
+  gap: 6px;
+  align-self: center;
+}
+
+.masthead-nav a {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding: 3px 10px 4px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.masthead-nav a:hover {
+  border-color: var(--faint);
+  color: var(--text);
+}
+
+.masthead-nav a[aria-current="page"] {
+  border-color: var(--measure);
+  color: var(--measure);
+}
+
 /* ---------- picker bar ---------- */
 
 .pickerbar {
@@ -606,6 +631,276 @@ a:hover {
   margin-bottom: 10px;
 }
 
+/* ---------- measurements view ---------- */
+
+.m-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.m-wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  min-height: 100%;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+.m-section {
+  padding: 20px 26px 24px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.m-section > .eyebrow {
+  margin-bottom: 14px;
+}
+
+.m-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.m-grid2 > .m-section {
+  border-bottom: none;
+  min-width: 0;
+}
+
+.m-grid2 > .m-section + .m-section {
+  border-left: 1px solid var(--line-soft);
+}
+
+/* hero */
+
+.m-hero-values {
+  display: flex;
+  align-items: flex-end;
+  gap: 32px;
+  flex-wrap: wrap;
+  margin: 4px 0 16px;
+}
+
+.m-hv .n {
+  font-family: var(--mono);
+  font-size: 52px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.m-hv.ceiling .n {
+  color: var(--measure-dim);
+}
+
+.m-hv.actual .n {
+  color: var(--measure);
+}
+
+.m-hv .u {
+  font-size: 22px;
+  margin-left: 2px;
+}
+
+.m-hv-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-top: 8px;
+}
+
+.m-vs {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--faint);
+  padding-bottom: 26px;
+}
+
+.m-finding {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 70ch;
+}
+
+/* stream anchor bars */
+
+.bars {
+  display: grid;
+  gap: 9px;
+  max-width: 560px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 84px 1fr 150px;
+  gap: 12px;
+  align-items: center;
+}
+
+.bar-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.bar-track {
+  height: 12px;
+  background: var(--line-soft);
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--faint);
+}
+
+.bar-row.hit .bar-fill {
+  background: var(--measure-dim);
+}
+
+.bar-val {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--measure);
+  white-space: nowrap;
+}
+
+.bar-val .u {
+  font-size: 10px;
+  color: var(--measure-dim);
+}
+
+.bar-tax {
+  color: var(--measure);
+  margin-left: 8px;
+}
+
+/* thread sweep chart */
+
+.sweepchart {
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  height: auto;
+}
+
+.sw-grid {
+  stroke: var(--line-soft);
+}
+
+.sw-tick {
+  fill: var(--faint);
+  font-family: var(--mono);
+  font-size: 9.5px;
+}
+
+.sw-line {
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.sw-hover {
+  fill: transparent;
+}
+
+.sw-dot {
+  fill: var(--measure);
+}
+
+.sw-name {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.sw-peak {
+  fill: var(--measure);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* tables */
+
+.m-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.m-table th {
+  font-weight: 400;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: left;
+  padding: 0 16px 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.m-table td {
+  padding: 6px 16px 6px 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text);
+}
+
+.m-table tr:last-child td {
+  border-bottom: none;
+}
+
+.m-table th.num,
+.m-table td.num {
+  text-align: right;
+}
+
+.m-table th:last-child,
+.m-table td:last-child {
+  padding-right: 0;
+}
+
+.m-table td.v {
+  color: var(--measure);
+}
+
+.m-table td.dim {
+  color: var(--muted);
+}
+
+/* kv variants used on the measurements page */
+
+.kv.wide {
+  grid-template-columns: 152px 1fr;
+}
+
+.kv dd .v {
+  color: var(--measure);
+}
+
+/* provenance footer */
+
+.m-foot {
+  padding: 18px 26px 32px;
+}
+
+.m-foot > .eyebrow {
+  margin-bottom: 8px;
+}
+
+.m-prov {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 900px) {
@@ -630,5 +925,35 @@ a:hover {
 
   .masthead-endpoint {
     display: none;
+  }
+
+  .m-wrap {
+    border-left: none;
+    border-right: none;
+  }
+
+  .m-grid2 {
+    grid-template-columns: 1fr;
+  }
+
+  .m-grid2 > .m-section + .m-section {
+    border-left: none;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .m-hv .n {
+    font-size: 38px;
+  }
+
+  .m-vs {
+    padding-bottom: 18px;
+  }
+
+  .bar-row {
+    grid-template-columns: 72px 1fr;
+  }
+
+  .bar-val {
+    grid-column: 2;
   }
 }

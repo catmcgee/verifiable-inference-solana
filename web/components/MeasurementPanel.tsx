@@ -10,9 +10,10 @@ import {
   fmtRate,
   trunc,
 } from "@/lib/format";
+import { SERVER } from "@/lib/api";
 import {
   explorerUrl,
-  GRADE_DETAILS,
+  gradeLabel,
   REGISTRY_PROGRAM,
   sevLabel,
 } from "@/lib/labels";
@@ -112,14 +113,34 @@ function Attestation({
         </button>
       </div>
       {loading && <div className="p-detail">fetching /v1/attestation…</div>}
-      {error && <div className="p-error">GET /v1/attestation failed: {error}</div>}
+      {error && !loading && (
+        // network failure OR a 5xx from the Next /vinfer proxy both mean the
+        // upstream vinfer server is unreachable — show the calm note for both.
+        (error.includes("no route to server") || error.includes("Failed to fetch") ||
+         /\b5\d\d\b/.test(error)) ? (
+          <>
+            <div className="p-lede">no server reachable</div>
+            <div className="p-detail">
+              Nothing answered at {SERVER}. Attestation renders once a vinfer
+              server is running there — start one, or point
+              NEXT_PUBLIC_VINFER_URL at a running server and restart the web
+              app.
+            </div>
+          </>
+        ) : (
+          <div className="p-error">GET /v1/attestation failed: {error}</div>
+        )
+      )}
       {att && !loading && !error && (
         <>
-          <div className="p-lede">grade: {att.grade ?? DASH}</div>
-          <div className="p-detail">
-            {GRADE_DETAILS[att.grade] ?? att.note ?? "unrecognized grade; shown as returned."}
+          <div className="p-lede">
+            {gradeLabel(att.grade) ?? DASH}
           </div>
           <dl className="kv">
+            <dt>grade</dt>
+            <dd className={att.grade ? "" : "na"}>{att.grade ?? DASH}</dd>
+            <dt>sev_mode</dt>
+            <dd className={att.sev_mode ? "" : "na"}>{att.sev_mode ?? DASH}</dd>
             <dt>binding</dt>
             <dd>
               {att.binding_version != null ? `v${att.binding_version}` : DASH}
@@ -134,10 +155,12 @@ function Attestation({
             <dd className={att.snp_measurement ? "hash" : "na"}>
               {att.snp_measurement ? trunc(att.snp_measurement) : "none"}
             </dd>
+            <dt>snp report</dt>
+            <dd className={att.snp_report_b64 ? "hash" : "na"}>
+              {att.snp_report_b64 ? "present (b64)" : "none"}
+            </dd>
           </dl>
-          {att.note && GRADE_DETAILS[att.grade] && (
-            <div className="p-note">{att.note}</div>
-          )}
+          {att.note && <div className="p-note">{att.note}</div>}
         </>
       )}
     </section>

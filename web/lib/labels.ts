@@ -32,12 +32,19 @@ export function sevLabel(mode: string | null | undefined): SevLabel | null {
   );
 }
 
-// GET /v1/attestation → grade
-export const GRADE_DETAILS: Record<string, string> = {
-  snp: "signed runtime report; verification chain to AMD KDS.",
-  "launch-only": "launch measurement only; no signed runtime report.",
-  mock: "no hardware report. A verifier can conclude nothing from this.",
+// GET /v1/attestation → grade, in plain words. Values: none | launch-only |
+// snp | mock. An unrecognized grade is shown as returned.
+export const GRADE_LABELS: Record<string, string> = {
+  none: "no TEE — memory plaintext",
+  "launch-only": "SEV memory-encrypted, no runtime report",
+  snp: "SEV-SNP, signed runtime report",
+  mock: "dev mock — nothing real",
 };
+
+export function gradeLabel(grade: string | null | undefined): string | null {
+  if (!grade) return null;
+  return GRADE_LABELS[grade] ?? grade;
+}
 
 export interface Leg {
   id: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   getAttestation,
   getModels,
@@ -162,6 +163,12 @@ export default function Page() {
         <div className="wordmark">
           verified-inference <b>/ measurement console</b>
         </div>
+        <nav className="masthead-nav" aria-label="Views">
+          <Link href="/" aria-current="page">
+            console
+          </Link>
+          <Link href="/measurements">measurements</Link>
+        </nav>
         <div className="masthead-endpoint">{SERVER}</div>
       </header>
 

@@ -24,13 +24,15 @@ export interface ModelInfo {
 }
 
 export interface AttestationDoc {
-  grade: string;
+  grade: string; // none | launch-only | snp | mock
   binding_version: number;
+  sev_mode?: string | null;
   enclave_pubkey_b64?: string | null;
   report_data?: string | null;
   registry_hash?: string | null;
   server_build_hash?: string | null;
   snp_measurement?: string | null;
+  snp_report_b64?: string | null;
   note?: string | null;
 }
 
