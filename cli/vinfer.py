@@ -37,11 +37,47 @@ def cli():
 @click.option("--prompt", required=True)
 @click.option("--max-tokens", default=64, show_default=True)
 @click.option("--receipt-out", type=click.Path(dir_okay=False), help="Write the signed receipt JSON here")
-@click.option("--sealed", is_flag=True, help="HPKE encrypt-to-enclave (input_mode=hpke)")
-def infer(model: str, prompt: str, max_tokens: int, receipt_out: str | None, sealed: bool):
-    """Run one inference and print live metrics. --sealed encrypts the prompt to
-    the enclave's HPKE key (fetched from /v1/attestation) so the TLS-terminating
-    operator never sees plaintext."""
+@click.option("--sealed", is_flag=True, help="HPKE encrypt-to-enclave (input only)")
+@click.option("--e2e", is_flag=True, help="Attestation-gated end-to-end sealed session (both directions)")
+@click.option("--insecure-allow-unattested", is_flag=True,
+              help="For --e2e: proceed even if the enclave is not hardware-attested (dev/SEV-ES)")
+def infer(model: str, prompt: str, max_tokens: int, receipt_out: str | None,
+          sealed: bool, e2e: bool, insecure_allow_unattested: bool):
+    """Run one inference. --sealed encrypts the prompt to the enclave (input
+    only). --e2e VERIFIES the attestation first, then encrypts prompt AND
+    response under a session key bound to the attested enclave key."""
+    if e2e:
+        from cli.attest_verify import verify_attestation
+        from server.crypto.session_box import client_open_session, client_open_response
+
+        doc = _get("/v1/attestation")
+        v = verify_attestation(doc, allow_unattested=insecure_allow_unattested)
+        mark = "PASS" if v.trusted else "REFUSE"
+        click.echo(f"[attest {mark}] grade={v.grade} binding_ok={v.binding_ok} "
+                   f"kds_ok={v.kds_ok}", err=True)
+        click.echo(f"           {v.reason}", err=True)
+        if not v.trusted:
+            click.echo("aborting e2e session — enclave key not trusted.", err=True)
+            sys.exit(2)
+        wire, session_key = client_open_session(doc["hpke_public_key_b64"], prompt.encode())
+        r = httpx.post(f"{BASE_URL}/v1/chat_e2e",
+                       json={"model": model, "enc": wire["enc"],
+                             "ciphertext": wire["ciphertext"], "max_tokens": max_tokens},
+                       timeout=600)
+        r.raise_for_status()
+        d = r.json()
+        text = client_open_response(session_key, d["resp_nonce"], d["sealed_response"]).decode()
+        metrics = json.loads(client_open_response(
+            session_key, d["sealed_metrics"]["resp_nonce"],
+            d["sealed_metrics"]["sealed_response"]).decode())
+        click.echo(text)
+        click.echo(f"\n[{model}] e2e-sealed · {metrics['tokens_per_s']} tok/s · "
+                   f"decrypted client-side · receipt {d['receipt']['receipt_id']}", err=True)
+        if receipt_out:
+            Path(receipt_out).parent.mkdir(parents=True, exist_ok=True)
+            Path(receipt_out).write_text(json.dumps(d["receipt"], indent=2))
+            click.echo(f"receipt → {receipt_out}", err=True)
+        return
     if sealed:
         from server.crypto.hpke_box import seal_to_enclave
 

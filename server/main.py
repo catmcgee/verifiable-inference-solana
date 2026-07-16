@@ -162,6 +162,36 @@ async def infer_sealed(req: SealedInferRequest):
     return {"model": req.model, **result, "receipt": receipt}
 
 
+@app.post("/v1/chat_e2e")
+async def chat_e2e(req: SealedInferRequest):
+    """Attestation-gated end-to-end sealed session: prompt AND response are
+    encrypted under an HPKE-exporter session key bound to the enclave key the
+    client verified from the attestation. The operator sees ciphertext both ways.
+    Response body carries only {resp_nonce, sealed_response, receipt}."""
+    from server.crypto.session_box import ServerSession
+
+    t0 = time.perf_counter()
+    try:
+        sess = ServerSession(app.state.hpke, req.enc)
+        prompt = sess.open_prompt(req.ciphertext).decode()
+    except Exception:
+        raise HTTPException(400, "session open failed (wrong key or tampered ciphertext)")
+    open_ms = round((time.perf_counter() - t0) * 1000.0, 3)
+    result = await _generate(req.model, prompt, req.max_tokens)
+    result["metrics"]["session_open_ms"] = open_ms
+    result["metrics"]["input_mode"] = "e2e-sealed"
+    # receipt still binds plaintext hashes (computed inside the enclave)
+    receipt = _sign(prompt, result["text"], req.model, result["metrics"], app.state.receipts)
+    sealed = sess.seal_response(result["text"].encode())
+    # metrics ride sealed too (they'd otherwise leak output length); seal them
+    import json as _json
+    sealed_meta = sess.seal_response(_json.dumps(result["metrics"]).encode())
+    return {"model": req.model, **sealed,
+            "sealed_metrics": {"resp_nonce": sealed_meta["resp_nonce"],
+                               "sealed_response": sealed_meta["sealed_response"]},
+            "receipt": receipt}
+
+
 def _sign(prompt: str, text: str, model_id: str, metrics: dict, receipts: dict) -> dict:
     t0 = time.perf_counter()
     try:
