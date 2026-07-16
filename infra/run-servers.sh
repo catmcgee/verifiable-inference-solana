@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start llama-server instances for the model ladder (run ON the box).
 # Usage: ./run-servers.sh [threads]   (default 64 = physical cores)
-# Ports must match server/llama_backend.py REAL_MODELS.
+# Ports must match models.yaml (the registry is the single source of truth).
 set -euo pipefail
 THREADS="${1:-64}"
 MODELS="$HOME/models"

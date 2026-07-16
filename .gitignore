@@ -47,3 +47,7 @@ build/
 # Local-only run artifacts (synthetic fixtures ARE committed; live runs curated into runs/)
 runs/_scratch/
 *.log
+
+# Generated artifacts (regenerate from sources; never the source of truth)
+payskill/generated/
+report/out/

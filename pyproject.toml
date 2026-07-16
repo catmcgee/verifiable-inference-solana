@@ -10,6 +10,7 @@ dependencies = [
     "click>=8.1",
     "jsonschema>=4.23",
     "pynacl>=1.5",
+    "pyyaml>=6.0.3",
 ]
 
 [project.scripts]

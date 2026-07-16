@@ -103,12 +103,23 @@ def verify(receipt_file: str):
             )
         binding = "PASS" if att["enclave_pubkey_b64"] == receipt["enclave_pubkey_b64"] else "FAIL"
         step("enclave key binding (attestation ↔ receipt)", binding)
+        bv = att.get("binding_version", 1)
+        if bv == 2:
+            mid = bytes.fromhex(att["registry_hash"])
+            label = "REPORT_DATA v2 = sha256(pubkey ‖ registry_hash ‖ build)"
+        else:
+            mid = bytes.fromhex(att["model_weights_hash"])
+            label = "REPORT_DATA v1 = sha256(pubkey ‖ weights ‖ build)"
         expected = hashlib.sha256(
-            base64.b64decode(att["enclave_pubkey_b64"])
-            + bytes.fromhex(att["model_weights_hash"])
+            base64.b64decode(att["enclave_pubkey_b64"]) + mid
             + bytes.fromhex(att["server_build_hash"])
         ).hexdigest()
-        step("REPORT_DATA = sha256(pubkey ‖ weights ‖ build)", "PASS" if expected == att["report_data"] else "FAIL")
+        step(label, "PASS" if expected == att["report_data"] else "FAIL",
+             f"binding_version={bv}")
+        if bv == 2:
+            reg = {e["id"]: e["weights_sha256"] for e in att.get("registry", [])}
+            in_reg = receipt["model_hash"] in reg.values()
+            step("receipt model_hash ∈ attested registry", "PASS" if in_reg else "FAIL")
 
     step("registry PDA lookup (Solana)", "SKIPPED", "devnet posting lands in P2")
     step("receipt ed25519 signature", "PASS" if verify_receipt(receipt) else "FAIL")

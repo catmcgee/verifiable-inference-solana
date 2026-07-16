@@ -1,7 +1,9 @@
 """verified-inference server.
 
-Backends: VINFER_BACKEND=mock (default, local dev) | llama (real llama-server
-proxies on the box). Run: uv run uvicorn server.main:app --port 8477
+Registry-driven (models.yaml is the single source of truth — ADDON step 1/2).
+Canonical surface: POST /v1/chat/completions · GET /v1/models · GET
+/v1/attestation · GET /v1/receipts/{id}. POST /v1/infer is a thin raw-prompt
+alias used by the harness. Backends: VINFER_BACKEND=mock (default) | llama.
 """
 
 from __future__ import annotations
@@ -9,37 +11,72 @@ from __future__ import annotations
 import hashlib
 import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from server import mock_backend
+from server import mock_backend, registry, runtimes
 from server.attest.mock import build_attestation
 from server.receipts.signer import EnclaveSigner
 
 BACKEND = os.environ.get("VINFER_BACKEND", "mock")
-if BACKEND == "llama":
-    from server import llama_backend as backend
+REGISTRY = registry.load()
 
-    MODELS = backend.REAL_MODELS
-else:
-    backend = mock_backend
-    MODELS = mock_backend.MODELS
 
-SERVER_BUILD = f"p2-{BACKEND}-0.2.0"
+def _attested_pairs() -> list[dict]:
+    """What this process ACTUALLY serves. Mock serves mock weights, so it
+    attests mock hashes — attestation never claims weights that aren't there."""
+    if BACKEND == "mock":
+        return [{"id": m.id, "weights_sha256": mock_backend.model_weights_hash(m.id).hex()}
+                for m in REGISTRY.values()]
+    return [{"id": m.id, "weights_sha256": m.weights_sha256}
+            for m in REGISTRY.values() if m.servable]
+
+
+REGISTRY_HASH = registry.pairs_hash(_attested_pairs())
+SERVER_BUILD = f"p2-{BACKEND}-0.3.0"
 SERVER_BUILD_HASH = hashlib.sha256(SERVER_BUILD.encode()).digest()
+
+
+def _servable(model_id: str) -> registry.ModelEntry:
+    entry = REGISTRY.get(model_id)
+    if entry is None:
+        raise HTTPException(404, f"unknown model {model_id!r}")
+    if not entry.servable:
+        raise HTTPException(503, f"model {model_id!r} is pending (weights not on box yet)")
+    return entry
+
+
+def model_weights_hash(model_id: str) -> bytes:
+    if BACKEND == "mock":
+        return mock_backend.model_weights_hash(model_id)
+    return _servable(model_id).weights_hash
+
+
+async def _generate(model_id: str, prompt: str, max_tokens: int) -> dict:
+    if BACKEND == "mock":
+        return await mock_backend.generate(model_id, prompt, max_tokens)
+    return await runtimes.for_model(_servable(model_id)).generate(prompt, max_tokens)
+
+
+async def _chat(model_id: str, messages: list[dict], max_tokens: int) -> dict:
+    if BACKEND == "mock":
+        prompt = "\n".join(m.get("content", "") for m in messages)
+        return await mock_backend.generate(model_id, prompt, max_tokens)
+    return await runtimes.for_model(_servable(model_id)).chat(messages, max_tokens)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Enclave key: generated at boot, in-memory only, never persisted (standing rule)
+    # Enclave key: generated at boot, in-memory only, never persisted
     app.state.signer = EnclaveSigner()
     app.state.receipts = {}
     yield
 
 
-app = FastAPI(title="verified-inference", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="verified-inference", version="0.3.0", lifespan=lifespan)
 
 
 class InferRequest(BaseModel):
@@ -48,45 +85,85 @@ class InferRequest(BaseModel):
     max_tokens: int = Field(default=64, ge=1, le=4096)
 
 
+class ChatRequest(BaseModel):
+    model: str
+    messages: list[dict]
+    max_tokens: int = Field(default=256, ge=1, le=131072)
+    stream: bool = False  # v1: non-stream responses (streaming lands with x402 gating)
+
+
 @app.get("/healthz")
 async def healthz():
-    return {"ok": True, "build": SERVER_BUILD, "sev_mode": backend.SEV_MODE}
+    return {"ok": True, "build": SERVER_BUILD, "backend": BACKEND,
+            "sev_mode": os.environ.get("VINFER_SEV_MODE", "off"),
+            "registry_hash": REGISTRY_HASH.hex()}
 
 
 @app.get("/v1/models")
 async def models():
     return {
-        "models": [
-            {"name": name, "quant": cfg["quant"], "backend": BACKEND,
-             "weights_hash": backend.model_weights_hash(name).hex()}
-            for name, cfg in MODELS.items()
-        ]
+        "object": "list",
+        "data": [
+            {
+                "id": m.id, "object": "model", "owned_by": "verified-inference",
+                "quant": m.quant, "runtime": m.runtime, "legs": list(m.legs),
+                "ctx_max": m.ctx_max, "backend": BACKEND,
+                "status": "available" if (m.servable or BACKEND == "mock") else "pending-weights",
+                "weights_sha256": m.weights_sha256,
+                "price_per_1m_in_usdc": m.price_per_1m_in_usdc,
+                "price_per_1m_out_usdc": m.price_per_1m_out_usdc,
+            }
+            for m in REGISTRY.values()
+        ],
     }
 
 
 @app.get("/v1/attestation")
 async def attestation():
-    # One attestation binds the enclave key + ALL served model hashes via a
-    # combined hash; per-model REPORT_DATA is a P3 decision once snpguest exists.
-    combined = hashlib.sha256(
-        b"".join(backend.model_weights_hash(m) for m in sorted(MODELS))
-    ).digest()
-    return build_attestation(app.state.signer.pubkey_b64, combined, SERVER_BUILD_HASH)
+    # Binding v2: REPORT_DATA = sha256(enclave_pubkey || registry_hash || build_hash)
+    return build_attestation(
+        app.state.signer.pubkey_b64, REGISTRY_HASH, SERVER_BUILD_HASH,
+        registry=_attested_pairs(),
+    )
+
+
+def _sign(prompt: str, text: str, model_id: str, metrics: dict, receipts: dict) -> dict:
+    t0 = time.perf_counter()
+    try:
+        receipt = app.state.signer.sign_receipt(prompt, text, model_weights_hash(model_id))
+    finally:
+        metrics["receipt_sign_ms"] = round((time.perf_counter() - t0) * 1000.0, 3)
+    receipts[receipt["receipt_id"]] = receipt
+    return receipt
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(req: ChatRequest):
+    if req.stream:
+        raise HTTPException(400, "stream=true not yet supported; poll non-stream")
+    result = await _chat(req.model, req.messages, req.max_tokens)
+    prompt_repr = "\n".join(m.get("content", "") for m in req.messages)
+    receipt = _sign(prompt_repr, result["text"], req.model, result["metrics"], app.state.receipts)
+    return {
+        "id": f"chatcmpl-{uuid.uuid4().hex[:20]}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": req.model,
+        "choices": [{"index": 0, "finish_reason": "stop",
+                     "message": {"role": "assistant", "content": result["text"]}}],
+        "usage": result.get("usage") or {
+            "prompt_tokens": 0, "completion_tokens": result["metrics"]["output_tokens"],
+            "total_tokens": result["metrics"]["output_tokens"]},
+        "x_vinfer": {"metrics": result["metrics"], "receipt": receipt,
+                     "registry_hash": REGISTRY_HASH.hex()},
+    }
 
 
 @app.post("/v1/infer")
 async def infer(req: InferRequest):
-    if req.model not in MODELS:
-        raise HTTPException(404, f"unknown model {req.model!r}")
-    result = await backend.generate(req.model, req.prompt, req.max_tokens)
-
-    t0 = time.perf_counter()
-    receipt = app.state.signer.sign_receipt(
-        req.prompt, result["text"], backend.model_weights_hash(req.model)
-    )
-    result["metrics"]["receipt_sign_ms"] = round((time.perf_counter() - t0) * 1000.0, 3)
-
-    app.state.receipts[receipt["receipt_id"]] = receipt
+    """Raw-prompt alias of the canonical surface (harness/bench path)."""
+    result = await _generate(req.model, req.prompt, req.max_tokens)
+    receipt = _sign(req.prompt, result["text"], req.model, result["metrics"], app.state.receipts)
     return {"model": req.model, **result, "receipt": receipt}
 
 

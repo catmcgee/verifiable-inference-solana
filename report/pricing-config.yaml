@@ -1,0 +1,27 @@
+# Pricing constants (ADDON step 4). Every number needs a justification comment;
+# the report cites these. pricing.py reads this + harness JSONL and writes
+# price_per_1m_{in,out}_usdc into models.yaml. NEVER hand-edit prices.
+
+# Box amortization: EPYC 9555P + 1.15TB DDR5-6400 + 6.4TB PCIe5 NVMe.
+# Comparable dedicated hosts (mid-2026 street price for 64C Turin + 1TB+ RAM)
+# run $1.8-3.5k/mo; $2.50/hr = ~$1.8k/mo sits at the low-middle of that band
+# and matches the synthetic-fixture assumption used since P0.
+box_usd_per_hr: 2.50
+
+# Margin over raw compute: covers idle time between paid requests, receipt
+# posting overhead, and operator upside. 30% is a placeholder until real
+# utilization data exists; the report states it explicitly.
+margin: 0.30
+
+# Solana receipt cost per request, devnet-measured CU projected at base fee
+# (LEDGER/CU-NOTES: ~12k CU single post => fee dominated by signature price,
+# 5000 lamports/sig; at $150/SOL that's ~$0.0008/receipt un-batched).
+receipt_usd: 0.0008
+
+# Input tokens are much cheaper than output on CPU (prompt processing is
+# compute-bound and parallel vs sequential decode): price input at this
+# fraction of output-token cost. 1/4 mirrors the industry-typical in:out ratio.
+input_price_fraction: 0.25
+
+# Throughput source: median tokens_per_s per model over the newest runs file,
+# leg A, best measured thread count, concurrency 1.

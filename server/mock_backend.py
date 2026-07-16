@@ -13,12 +13,14 @@ import hashlib
 import os
 import random
 
-# tok/s guesses for the Turin box, only used to shape mock output
+# Mock latency profiles only (NOT model config — that lives in models.yaml).
+# Keys must be registry ids; used purely to shape simulated output locally.
 MODELS: dict[str, dict] = {
     "bitnet-2b": {"quant": "i2_s", "tok_s": 90.0, "ttft_ms": 120.0, "sev_tax": 0.02},
     "8b-q4": {"quant": "Q4_K_M", "tok_s": 22.0, "ttft_ms": 350.0, "sev_tax": 0.05},
     "8b-q8": {"quant": "Q8_0", "tok_s": 14.0, "ttft_ms": 420.0, "sev_tax": 0.06},
     "70b-q4": {"quant": "Q4_K_M", "tok_s": 3.5, "ttft_ms": 2100.0, "sev_tax": 0.09},
+    "glm-5.2-q4": {"quant": "UD-Q4_K_XL", "tok_s": 10.0, "ttft_ms": 1500.0, "sev_tax": 0.08},
 }
 
 SEV_MODE = os.environ.get("VINFER_SEV_MODE", "off")  # off|sev|es|snp

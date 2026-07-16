@@ -1,0 +1,72 @@
+# Model registry — SINGLE SOURCE OF TRUTH (ADDON-REGISTRY.md step 1).
+# Consumers: server, harness, attestation binding, pricing.py, payskill gen.
+# price_* fields are written by report/pricing.py — never by hand.
+# weights paths are box paths; weights_sha256 for sharded models is the sha256
+# of the newline-joined sorted per-shard sha256 list (single file: file hash).
+
+- id: bitnet-2b
+  runtime: bitnetcpp
+  weights: /home/ubuntu/src/BitNet/models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf
+  weights_sha256: 4221b252fdd5fd25e15847adfeb5ee88886506ba50b8a34548374492884c2162
+  quant: i2_s
+  ctx_max: 4096
+  chat_template: builtin
+  legs:
+  - A
+  - B
+  - D
+  port: 8601
+  price_per_1m_in_usdc: 3.1933
+  price_per_1m_out_usdc: 12.7731
+- id: 8b-q4
+  runtime: llamacpp
+  weights: /home/ubuntu/models/llama-3.1-8b-instruct-Q4_K_M.gguf
+  weights_sha256: 7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c
+  quant: Q4_K_M
+  ctx_max: 16384
+  chat_template: builtin
+  legs:
+  - A
+  - B
+  port: 8602
+  price_per_1m_in_usdc: 4.6727
+  price_per_1m_out_usdc: 18.6907
+- id: 8b-q8
+  runtime: llamacpp
+  weights: /home/ubuntu/models/llama-3.1-8b-instruct-Q8_0.gguf
+  weights_sha256: 9da71c45c90a821809821244d4971e5e5dfad7eb091f0b8ff0546392393b6283
+  quant: Q8_0
+  ctx_max: 16384
+  chat_template: builtin
+  legs:
+  - A
+  - B
+  port: 8603
+  price_per_1m_in_usdc: 5.8017
+  price_per_1m_out_usdc: 23.2069
+- id: 70b-q4
+  runtime: llamacpp
+  weights: /home/ubuntu/models/llama-3.3-70b-instruct-Q4_K_M.gguf
+  weights_sha256: 32df3baccb556f9840059b2528b2dee4d3d516b24afdfb9d0c56ff5f63e3a664
+  quant: Q4_K_M
+  ctx_max: 16384
+  chat_template: builtin
+  legs:
+  - A
+  - B
+  port: 8604
+  price_per_1m_in_usdc: 23.3866
+  price_per_1m_out_usdc: 93.5466
+- id: glm-5.2-q4
+  runtime: llamacpp
+  weights: /home/ubuntu/models/GLM-5.2-UD-Q4_K_XL/
+  weights_sha256: null
+  quant: UD-Q4_K_XL
+  ctx_max: 131072
+  chat_template: builtin
+  legs:
+  - A
+  - B
+  port: 8605
+  price_per_1m_in_usdc: null
+  price_per_1m_out_usdc: null
