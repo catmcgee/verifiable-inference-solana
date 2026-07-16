@@ -37,13 +37,24 @@ def cli():
 @click.option("--prompt", required=True)
 @click.option("--max-tokens", default=64, show_default=True)
 @click.option("--receipt-out", type=click.Path(dir_okay=False), help="Write the signed receipt JSON here")
-def infer(model: str, prompt: str, max_tokens: int, receipt_out: str | None):
-    """Run one inference and print live metrics."""
-    r = httpx.post(
-        f"{BASE_URL}/v1/infer",
-        json={"model": model, "prompt": prompt, "max_tokens": max_tokens},
-        timeout=600,
-    )
+@click.option("--sealed", is_flag=True, help="HPKE encrypt-to-enclave (input_mode=hpke)")
+def infer(model: str, prompt: str, max_tokens: int, receipt_out: str | None, sealed: bool):
+    """Run one inference and print live metrics. --sealed encrypts the prompt to
+    the enclave's HPKE key (fetched from /v1/attestation) so the TLS-terminating
+    operator never sees plaintext."""
+    if sealed:
+        from server.crypto.hpke_box import seal_to_enclave
+
+        pub = _get("/v1/attestation")["hpke_public_key_b64"]
+        box = seal_to_enclave(pub, prompt.encode())
+        r = httpx.post(f"{BASE_URL}/v1/infer_sealed",
+                       json={"model": model, "enc": box["enc"],
+                             "ciphertext": box["ciphertext"], "max_tokens": max_tokens},
+                       timeout=600)
+    else:
+        r = httpx.post(f"{BASE_URL}/v1/infer",
+                       json={"model": model, "prompt": prompt, "max_tokens": max_tokens},
+                       timeout=600)
     r.raise_for_status()
     body = r.json()
     click.echo(body["text"])
