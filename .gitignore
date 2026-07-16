@@ -1,0 +1,49 @@
+# ── Secrets: these patterns exist BEFORE any secret file can (standing rule) ──
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.keypair.json
+id_ed25519*
+id_rsa*
+*_rsa
+*.p12
+secrets/
+**/enclave-keys/
+anthropic_key*
+ANTHROPIC_API_KEY*
+
+# Solana local keypairs / ledgers
+solana/target/deploy/*-keypair.json
+test-ledger/
+.anchor/
+
+# Model weights — live on the box's NVMe, never in git
+models/
+*.gguf
+*.safetensors
+*.bin
+
+# Tachyon is PRIVATE — never vendored here
+tachyon/
+zk/tachyon/
+
+# Build / runtime junk
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.next/
+target/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# Local-only run artifacts (synthetic fixtures ARE committed; live runs curated into runs/)
+runs/_scratch/
+*.log

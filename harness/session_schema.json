@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "verified-inference/session-record/v1",
+  "title": "Per-session measurement record (FROZEN v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id", "sev_mode", "boot_s", "model_load_s", "first_attestation_s",
+    "stream_triad_gbs", "kernel", "mitigations", "ts"
+  ],
+  "properties": {
+    "session_id": { "type": "string", "minLength": 1 },
+    "sev_mode": { "type": "string", "enum": ["off", "sev", "es", "snp"] },
+    "boot_s": { "type": "number", "minimum": 0 },
+    "model_load_s": { "type": "number", "minimum": 0 },
+    "first_attestation_s": { "type": "number", "minimum": 0 },
+    "stream_triad_gbs": { "type": "number", "minimum": 0 },
+    "kernel": { "type": "string" },
+    "mitigations": { "type": "string" },
+    "ts": { "type": "string", "format": "date-time" }
+  }
+}

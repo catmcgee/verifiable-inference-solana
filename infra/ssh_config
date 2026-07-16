@@ -1,0 +1,19 @@
+# Sunburst box — merge into your ~/.ssh/config.
+# Standing rule: the IdentityFile line (key PATH) lives ONLY in your own
+# ~/.ssh/config, never in this checked-in file. The private key itself is
+# never read, printed, or copied anywhere.
+#
+# In your ~/.ssh/config add:
+#   Host sunburst
+#       IdentityFile ~/.ssh/id_ed25519_sunburst
+#       IdentitiesOnly yes
+# plus the HostName/User below once known.
+
+Host sunburst
+    HostName FILL_ME_FROM_SUNBURST   # pending: Needs-from-Cat #1
+    User FILL_ME
+    ServerAliveInterval 30
+    ServerAliveCountMax 4
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-%r@%h:%p
+    ControlPersist 10m

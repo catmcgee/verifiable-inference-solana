@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "verified-inference/request-record/v1",
+  "title": "Per-request measurement record (FROZEN v1 — changes migrate old JSONL, never fork it)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id", "leg", "model", "quant", "sev_mode", "input_mode",
+    "threads", "numa_policy", "prompt_tokens", "output_tokens",
+    "batch", "concurrency",
+    "ttft_ms", "itl_ms_p50", "itl_ms_p99", "tokens_per_s",
+    "e2e_ms", "attest_fetch_ms", "attest_verify_ms",
+    "receipt_sign_ms", "receipt_post_ms", "receipt_confirm_ms",
+    "solana_cu", "solana_fee_lamports", "ts"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "leg": { "type": "string", "enum": ["A", "B", "C-direct", "C-proxied", "D"] },
+    "model": { "type": "string" },
+    "quant": { "type": "string" },
+    "sev_mode": { "type": "string", "enum": ["off", "sev", "es", "snp"] },
+    "input_mode": { "type": "string", "enum": ["tls", "hpke"] },
+    "threads": { "type": "integer", "minimum": 0 },
+    "numa_policy": { "type": "string" },
+    "prompt_tokens": { "type": "integer", "minimum": 0 },
+    "output_tokens": { "type": "integer", "minimum": 0 },
+    "batch": { "type": "integer", "minimum": 0 },
+    "concurrency": { "type": "integer", "minimum": 0 },
+    "ttft_ms": { "type": "number", "minimum": 0 },
+    "itl_ms_p50": { "type": "number", "minimum": 0 },
+    "itl_ms_p99": { "type": "number", "minimum": 0 },
+    "tokens_per_s": { "type": "number", "minimum": 0 },
+    "e2e_ms": { "type": "number", "minimum": 0 },
+    "attest_fetch_ms": { "type": "number", "minimum": 0 },
+    "attest_verify_ms": { "type": "number", "minimum": 0 },
+    "receipt_sign_ms": { "type": "number", "minimum": 0 },
+    "receipt_post_ms": { "type": "number", "minimum": 0 },
+    "receipt_confirm_ms": { "type": "number", "minimum": 0 },
+    "solana_cu": { "type": "integer", "minimum": 0 },
+    "solana_fee_lamports": { "type": "integer", "minimum": 0 },
+    "ts": { "type": "string", "format": "date-time" }
+  }
+}
