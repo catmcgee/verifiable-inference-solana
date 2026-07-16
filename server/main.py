@@ -70,8 +70,11 @@ async def _chat(model_id: str, messages: list[dict], max_tokens: int) -> dict:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Enclave key: generated at boot, in-memory only, never persisted
+    # Enclave keys: generated at boot, in-memory only, never persisted.
     app.state.signer = EnclaveSigner()
+    from server.crypto.hpke_box import EnclaveHpkeKey
+
+    app.state.hpke = EnclaveHpkeKey()
     app.state.receipts = {}
     yield
 
@@ -121,10 +124,39 @@ async def models():
 @app.get("/v1/attestation")
 async def attestation():
     # Binding v2: REPORT_DATA = sha256(enclave_pubkey || registry_hash || build_hash)
-    return build_attestation(
+    doc = build_attestation(
         app.state.signer.pubkey_b64, REGISTRY_HASH, SERVER_BUILD_HASH,
         registry=_attested_pairs(),
     )
+    # HPKE public key for input_mode=hpke (encrypt-to-enclave). In the SNP case
+    # this is bound to the attested ed25519 key; here it just rides the doc.
+    doc["hpke_public_key_b64"] = app.state.hpke.public_key_b64
+    doc["hpke_suite"] = "DHKEM(X25519,HKDF-SHA256)+HKDF-SHA256+ChaCha20Poly1305"
+    return doc
+
+
+class SealedInferRequest(BaseModel):
+    model: str
+    enc: str          # HPKE encapsulated key (base64)
+    ciphertext: str   # HPKE-sealed prompt (base64)
+    max_tokens: int = Field(default=64, ge=1, le=4096)
+
+
+@app.post("/v1/infer_sealed")
+async def infer_sealed(req: SealedInferRequest):
+    """input_mode=hpke: prompt arrives encrypted to the enclave HPKE key and is
+    decrypted here (inside the enclave), never visible to a TLS-terminating proxy."""
+    t0 = time.perf_counter()
+    try:
+        prompt = app.state.hpke.open(req.enc, req.ciphertext).decode()
+    except Exception:
+        raise HTTPException(400, "HPKE decrypt failed (wrong key or tampered ciphertext)")
+    decrypt_ms = round((time.perf_counter() - t0) * 1000.0, 3)
+    result = await _generate(req.model, prompt, req.max_tokens)
+    result["metrics"]["hpke_decrypt_ms"] = decrypt_ms
+    result["metrics"]["input_mode"] = "hpke"
+    receipt = _sign(prompt, result["text"], req.model, result["metrics"], app.state.receipts)
+    return {"model": req.model, **result, "receipt": receipt}
 
 
 def _sign(prompt: str, text: str, model_id: str, metrics: dict, receipts: dict) -> dict:
