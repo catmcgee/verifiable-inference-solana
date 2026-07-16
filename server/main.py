@@ -1,11 +1,13 @@
-"""verified-inference server. P0: mock backend only; bitnet.cpp/llama.cpp land in P2.
+"""verified-inference server.
 
-Run: uv run uvicorn server.main:app --port 8477
+Backends: VINFER_BACKEND=mock (default, local dev) | llama (real llama-server
+proxies on the box). Run: uv run uvicorn server.main:app --port 8477
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 import time
 from contextlib import asynccontextmanager
 
@@ -16,7 +18,16 @@ from server import mock_backend
 from server.attest.mock import build_attestation
 from server.receipts.signer import EnclaveSigner
 
-SERVER_BUILD = "p0-mock-0.1.0"
+BACKEND = os.environ.get("VINFER_BACKEND", "mock")
+if BACKEND == "llama":
+    from server import llama_backend as backend
+
+    MODELS = backend.REAL_MODELS
+else:
+    backend = mock_backend
+    MODELS = mock_backend.MODELS
+
+SERVER_BUILD = f"p2-{BACKEND}-0.2.0"
 SERVER_BUILD_HASH = hashlib.sha256(SERVER_BUILD.encode()).digest()
 
 
@@ -39,16 +50,16 @@ class InferRequest(BaseModel):
 
 @app.get("/healthz")
 async def healthz():
-    return {"ok": True, "build": SERVER_BUILD, "sev_mode": mock_backend.SEV_MODE}
+    return {"ok": True, "build": SERVER_BUILD, "sev_mode": backend.SEV_MODE}
 
 
 @app.get("/v1/models")
 async def models():
     return {
         "models": [
-            {"name": name, "quant": cfg["quant"], "backend": "mock",
-             "weights_hash": mock_backend.model_weights_hash(name).hex()}
-            for name, cfg in mock_backend.MODELS.items()
+            {"name": name, "quant": cfg["quant"], "backend": BACKEND,
+             "weights_hash": backend.model_weights_hash(name).hex()}
+            for name, cfg in MODELS.items()
         ]
     }
 
@@ -58,20 +69,20 @@ async def attestation():
     # One attestation binds the enclave key + ALL served model hashes via a
     # combined hash; per-model REPORT_DATA is a P3 decision once snpguest exists.
     combined = hashlib.sha256(
-        b"".join(mock_backend.model_weights_hash(m) for m in sorted(mock_backend.MODELS))
+        b"".join(backend.model_weights_hash(m) for m in sorted(MODELS))
     ).digest()
     return build_attestation(app.state.signer.pubkey_b64, combined, SERVER_BUILD_HASH)
 
 
 @app.post("/v1/infer")
 async def infer(req: InferRequest):
-    if req.model not in mock_backend.MODELS:
+    if req.model not in MODELS:
         raise HTTPException(404, f"unknown model {req.model!r}")
-    result = await mock_backend.generate(req.model, req.prompt, req.max_tokens)
+    result = await backend.generate(req.model, req.prompt, req.max_tokens)
 
     t0 = time.perf_counter()
     receipt = app.state.signer.sign_receipt(
-        req.prompt, result["text"], mock_backend.model_weights_hash(req.model)
+        req.prompt, result["text"], backend.model_weights_hash(req.model)
     )
     result["metrics"]["receipt_sign_ms"] = round((time.perf_counter() - t0) * 1000.0, 3)
 
