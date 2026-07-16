@@ -1,0 +1,1 @@
+{"session_id": "legB-snpcvm-snp", "sev_mode": "snp", "boot_s": 4.838, "model_load_s": 0, "first_attestation_s": 0.02, "stream_triad_gbs": 376.91, "kernel": "6.8.0-134-generic", "mitigations": "vm-guest", "ts": "2026-07-16T22:20:00Z"}

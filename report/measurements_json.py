@@ -38,7 +38,11 @@ def main() -> None:
         "bare_metal_gbs": stream.get("recon-baremetal-sevoff-20260716"),
         "plain_vm_gbs": off, "sev_es_gbs": es,
         "sev_es_tax_pct": round((off - es) / off * 100, 1) if off and es else None,
-        "note": "STREAM triad, 32 vCPU, identical VMs; pure-bandwidth worst case.",
+        "snp_cvm_gbs": stream.get("legB-snpcvm-snp"),
+        "note": "STREAM triad, 32 vCPU, identical VMs; pure-bandwidth worst case. "
+                "The SNP CVM figure is a KDS-verified separate run (different "
+                "kernel/day), shown as a context anchor — not a matched SEV-off↔SNP "
+                "tax pair.",
     }
 
     # --- thread-saturation sweep (tok/s by threads, prompt128/out128) ---

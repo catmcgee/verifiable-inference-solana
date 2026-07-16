@@ -12,7 +12,8 @@
     "plain_vm_gbs": 346.19,
     "sev_es_gbs": 256.1,
     "sev_es_tax_pct": 26.0,
-    "note": "STREAM triad, 32 vCPU, identical VMs; pure-bandwidth worst case."
+    "snp_cvm_gbs": 376.91,
+    "note": "STREAM triad, 32 vCPU, identical VMs; pure-bandwidth worst case. The SNP CVM figure is a KDS-verified separate run (different kernel/day), shown as a context anchor \u2014 not a matched SEV-off\u2194SNP tax pair."
   },
   "thread_sweep": {
     "unit": "tokens_per_s",

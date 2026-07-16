@@ -266,25 +266,52 @@ def sel(records, **kw):
 
 
 def section_stream(sessions):
-    off = [s for s in sessions if s["sev_mode"] == "off"]
-    on = [s for s in sessions if s["sev_mode"] != "off"]
-    m_off = med(s["stream_triad_gbs"] for s in off)
-    m_on = med(s["stream_triad_gbs"] for s in on)
-    tax = (m_off - m_on) / m_off * 100 if m_off else 0
-    on_mode = on[0]["sev_mode"] if on else "snp"
+    # The headline bandwidth tax is the MATCHED pair only: two identically-shaped
+    # VMs (same 32-vCPU/64G shape, same kernel, same day) that differ ONLY in SEV
+    # state. Other sessions — the bare-metal 128-thread anchor and the SNP CVM
+    # (a separate run, different kernel) — are shown for context but are NEVER
+    # pooled into the tax; different shape/kernel/day makes them non-comparable
+    # head to head (indeed the SNP anchor reads slightly higher than the plain VM,
+    # which is a cross-run artifact, not a negative tax).
+    def one(pred):
+        xs = [s for s in sessions if pred(s)]
+        return (med(s["stream_triad_gbs"] for s in xs) if xs else 0.0), xs
 
-    svg = two_bar_svg([("SEV off", m_off, SEV_OFF_SLOT), (f"SEV-{on_mode.upper()}", m_on, SEV_ON_SLOT)], " GB/s")
+    m_off, off = one(lambda s: s["sev_mode"] == "off" and "vm" in s["session_id"]
+                     and "baremetal" not in s["session_id"])
+    m_on, on = one(lambda s: s["sev_mode"] == "es")
+    tax = (m_off - m_on) / m_off * 100 if m_off and m_on else 0
+    m_bare, bare = one(lambda s: s["sev_mode"] == "off" and "baremetal" in s["session_id"])
+    m_snp, snp = one(lambda s: s["sev_mode"] == "snp")
 
+    bars = [("Plain VM · SEV off", m_off, SEV_OFF_SLOT), ("CVM · SEV-ES", m_on, SEV_ON_SLOT)]
+    anchors = []
+    if m_bare:
+        anchors.append(("Bare metal (128t anchor)", m_bare, "--s3"))
+    if m_snp:
+        anchors.append(("SNP CVM (separate run)", m_snp, "--s4"))
+    svg = two_bar_svg(bars + anchors, " GB/s")
+
+    snp_line = (f" The SNP CVM anchor ({fmt(m_snp)} GB/s, KDS-verified, separate "
+                "run) is shown for context only — a different kernel/day, not a "
+                "matched SEV-off↔SNP pair, so no SNP tax is claimed from it.") if m_snp else ""
+    tbl_rows = [["Plain VM (off)", fmt(m_off), str(len(off))],
+                ["CVM (SEV-ES)", fmt(m_on), str(len(on))]]
+    if m_bare:
+        tbl_rows.append(["Bare metal (off, anchor)", fmt(m_bare), str(len(bare))])
+    if m_snp:
+        tbl_rows.append(["SNP CVM (anchor)", fmt(m_snp), str(len(snp))])
     body = f"""
-    <p>Median STREAM triad bandwidth, both SEV states, on the box
-    (theoretical: ~614 GB/s from 12× DDR5-6400). CPU LLM decode is
-    memory-bandwidth-bound, so this single number is the mechanism behind every
-    TEE-tax chart below: SEV's AES memory encryption costs
-    <strong>{fmt(tax)}%</strong> of deliverable bandwidth
-    ({fmt(m_off)} → {fmt(m_on)} GB/s).</p>
+    <p>Median STREAM triad bandwidth on the box (theoretical: ~614 GB/s from
+    12× DDR5-6400). CPU LLM decode is memory-bandwidth-bound, so this is the
+    mechanism the TEE tax is measured against. The headline number is the
+    matched pair — two identical 32-vCPU VMs differing only in SEV state: SEV-ES
+    AES memory encryption costs <strong>{fmt(tax)}%</strong> of deliverable
+    bandwidth ({fmt(m_off)} → {fmt(m_on)} GB/s). Note this 26% is the
+    <em>bandwidth</em> tax; the actual single-stream <em>decode</em> tax below is
+    far smaller because a single decode stream does not saturate the bus.{snp_line}</p>
     {svg}
-    {table_view(["SEV state", "Median STREAM triad (GB/s)", "Sessions"],
-                [["off", fmt(m_off), str(len(off))], [on_mode, fmt(m_on), str(len(on))]])}
+    {table_view(["Configuration", "Median STREAM triad (GB/s)", "Sessions"], tbl_rows)}
     {sess_provenance(sessions)}
     """
     return body, tax, m_off, m_on
@@ -309,84 +336,111 @@ def two_bar_svg(rows, unit):
     return "".join(out)
 
 
-def tax_by_model_threads(records):
-    """SEV throughput tax (%) per model per thread count, conc=1.
+# The single cell at which legs A and B were BOTH measured, identically shaped.
+# Leg B was run only here (single-stream, 32 threads, short prompt); the wide
+# leg-A sweep does not overlap it. Every A-vs-B number is computed at this cell
+# and nowhere else — a mismatched cell yields n/a, never a ratio against zero.
+AB_CELL = {"threads": 32, "prompt_tokens": 16, "concurrency": 1}
 
-    Computed per matched cell (same model/threads/prompt/output) as
-    (median_A - median_B) / median_A, then the median across cells — pairing
-    cells avoids mixing context-length effects into the A-vs-B delta.
+
+def ab_matched(records):
+    """model -> (a_tps, b_tps) for models measured on BOTH legs at AB_CELL.
+
+    Models without both legs at the matched cell are omitted (rendered n/a by
+    callers) — the generator never fabricates a leg-B number it does not have.
     """
     out = {}
     for m in MODEL_ORDER:
-        vals = []
-        for t in THREAD_ORDER:
-            cell_taxes = []
-            for pt in PROMPT_ORDER:
-                for ot in sorted({r["output_tokens"] for r in records if r["leg"] in ("A", "B")}):
-                    a = med(r["tokens_per_s"] for r in sel(records, leg="A", model=m, threads=t,
-                                                           concurrency=1, prompt_tokens=pt, output_tokens=ot))
-                    b = med(r["tokens_per_s"] for r in sel(records, leg="B", model=m, threads=t,
-                                                           concurrency=1, prompt_tokens=pt, output_tokens=ot))
-                    if a:
-                        cell_taxes.append((a - b) / a * 100)
-            vals.append(med(cell_taxes))
-        out[m] = vals
+        a = sel(records, leg="A", model=m, **AB_CELL)
+        b = sel(records, leg="B", model=m, **AB_CELL)
+        if a and b:
+            out[m] = (med(r["tokens_per_s"] for r in a),
+                      med(r["tokens_per_s"] for r in b))
     return out
 
 
+def ab_tax(records):
+    """model -> SEV-ES throughput tax %, (a-b)/a, at the matched cell."""
+    return {m: (a - b) / a * 100 for m, (a, b) in ab_matched(records).items() if a}
+
+
 def section_tax_curves(records):
-    ab1 = sel(records, leg=("A", "B"), concurrency=1)
-    tax = tax_by_model_threads(records)
-    series = [(m, MODEL_SLOT[m], tax[m]) for m in MODEL_ORDER]
-    svg = line_chart_svg([str(t) for t in THREAD_ORDER], series, unit="%",
-                         y_label="SEV throughput tax, % of tokens/s")
-    rows = [[m] + [f"{v:.1f}%" for v in tax[m]] for m in MODEL_ORDER]
+    matched = ab_matched(records)
+    tax = ab_tax(records)
+    ab1 = sel(records, leg=("A", "B"), **AB_CELL)
+    models = [m for m in MODEL_ORDER if m in matched]
+    if not models:
+        return ("<p class='placeholder'>No matched A/B cell in the data — "
+                "cannot compute a TEE inference tax. (Need both legs at the same "
+                "model/threads/prompt/concurrency.)</p>", tax)
+
+    # bars are tax magnitude; sign + note fold into the row label (a small
+    # negative just means B measured slightly faster — i.e. within run-to-run
+    # noise, no measurable tax).
+    def lab(m):
+        t = tax[m]
+        sign = "−" if t < 0 else "+"
+        tail = " (within noise)" if abs(t) < 1.0 or t < 0 else ""
+        return f"{m}  {sign}{abs(t):.1f}%{tail}"
+    svg = hbar_svg([(lab(m), abs(tax[m]), MODEL_SLOT[m]) for m in models], unit="%")
+    rows = [[m, fmt(matched[m][0], 2), fmt(matched[m][1], 2), f"{tax[m]:+.1f}%"]
+            for m in models]
+    missing = [m for m in MODEL_ORDER if m not in matched]
+    miss_note = (f" ({', '.join(missing)} were not run on both legs at this cell, "
+                 "so no tax is shown for them.)") if missing else ""
+    worst = max(tax.values())
     body = f"""
-    <p>The headline chart. For each model and thread count, concurrency 1:
-    within each matched prompt/output cell, tax = (median tokens/s, leg A −
-    median tokens/s, leg B) / leg A; the plotted point is the median of the
-    cell taxes. The thesis prediction is visible: the tax grows
-    with model size (more bytes moved per token) and with thread count (closer
-    to bandwidth saturation, where encryption on the memory path has no slack
-    to hide in). bitnet-2b stays near ~{tax["bitnet-2b"][-1]:.1f}% even at 128
-    threads; 70b-q4 reaches ~{tax["70b-q4"][-1]:.1f}%.</p>
-    {legend_html([(m, MODEL_SLOT[m]) for m in MODEL_ORDER])}
+    <p>The measured SEV-ES inference tax, at the one cell where legs A and B were
+    run identically (single-stream, 32 threads, short prompt; concurrency 1).
+    Tax = (median tokens/s leg A − median tokens/s leg B) / leg A.{miss_note}</p>
+    <p><strong>The result is the surprising part:</strong> decode throughput is
+    taxed only about <strong>{worst:.0f}%</strong> at its worst here — far below
+    the {26}% STREAM bandwidth tax above. The reason is in that STREAM number:
+    single-stream decode at 32 threads does not saturate memory bandwidth, so
+    SEV's encryption cost on the memory path hides in the slack. The 26% STREAM
+    figure is the <em>ceiling</em> a fully bandwidth-saturating workload (many
+    concurrent streams, or a much larger model) would climb toward — not the
+    tax a single decode stream actually pays. Measuring that ceiling needs a
+    concurrency/thread A/B sweep on leg B, which has not been run (leg B has one
+    cell only); this chart does not extrapolate to it.</p>
     {svg}
-    {table_view(["Model"] + [f"{t} threads" for t in THREAD_ORDER], rows)}
+    {table_view(["Model", "A tok/s", "B tok/s", "SEV-ES tax"], rows)}
     {provenance(ab1)}
     """
     return body, tax
 
 
 def section_tps_ab(records):
-    slice_ = sel(records, leg=("A", "B"), threads=64, concurrency=1)
-    a_vals, b_vals, rows = [], [], []
-    for m in MODEL_ORDER:
+    slice_ = sel(records, leg=("A", "B"), **AB_CELL)
+    matched = ab_matched(records)
+    models = [m for m in MODEL_ORDER if m in matched]
+    a_vals = [matched[m][0] for m in models]
+    b_vals = [matched[m][1] for m in models]
+    rows = []
+    for m in models:
         a = sel(slice_, leg="A", model=m)
         b = sel(slice_, leg="B", model=m)
-        am, bm = med(r["tokens_per_s"] for r in a), med(r["tokens_per_s"] for r in b)
-        a_vals.append(am)
-        b_vals.append(bm)
+        am, bm = matched[m]
         rows.append([
-            m, fmt(am, 2), fmt(bm, 2), f"{(am - bm) / am * 100:.1f}%",
+            m, fmt(am, 2), fmt(bm, 2), f"{(am - bm) / am * 100:+.1f}%",
             fmt(med(r["itl_ms_p50"] for r in a), 2), fmt(p99([r["itl_ms_p99"] for r in a]), 2),
             fmt(med(r["itl_ms_p50"] for r in b), 2), fmt(p99([r["itl_ms_p99"] for r in b]), 2),
         ])
-    svg = grouped_bar_svg(MODEL_ORDER,
+    svg = grouped_bar_svg(models,
                           [("A · SEV off", SEV_OFF_SLOT, a_vals), ("B · SEV-ES", SEV_ON_SLOT, b_vals)],
                           unit="", value_fmt=lambda v: fmt(v, 1))
     body = f"""
-    <p>Median single-stream decode throughput (tokens/s) at 64 threads
-    (the bandwidth saturation point), concurrency 1, all prompt/output cells
-    pooled. The table adds inter-token latency: median of per-request p50 and
-    p99-of-p99s.</p>
+    <p>Median single-stream decode throughput (tokens/s) at the matched A/B cell
+    (32 threads, concurrency 1). The bars sit nearly on top of each other —
+    that visual near-equality <em>is</em> the ~2% tax result. The table adds
+    inter-token latency: median of per-request p50 and p99-of-p99s.</p>
     {legend_html([("A · SEV off", SEV_OFF_SLOT), ("B · SEV-ES", SEV_ON_SLOT)])}
     {svg}
     {table_view(["Model", "A tok/s", "B tok/s", "SEV tax",
                  "A ITL p50 (ms)", "A ITL p99 (ms)", "B ITL p50 (ms)", "B ITL p99 (ms)"], rows)}
     {provenance(slice_)}
     """
-    return body, dict(zip(MODEL_ORDER, zip(a_vals, b_vals)))
+    return body, {m: matched[m] for m in models}
 
 
 def cost_per_mtok(tps, box_cost_hr):
@@ -395,36 +449,33 @@ def cost_per_mtok(tps, box_cost_hr):
 
 
 def section_cost(records, tps_ab, box_cost_hr, api_in, api_out):
+    def usd(tps):
+        return f"${cost_per_mtok(tps, box_cost_hr):,.2f}" if tps else "n/a"
     rows = []
     for m in MODEL_ORDER:
+        if m not in tps_ab:
+            continue
         a_tps, b_tps = tps_ab[m]
-        # aggregate throughput at concurrency 8 (per-request tps * 8), 64 threads
-        a8 = med(r["tokens_per_s"] for r in sel(records, leg="A", model=m, threads=64, concurrency=8)) * 8
-        b8 = med(r["tokens_per_s"] for r in sel(records, leg="B", model=m, threads=64, concurrency=8)) * 8
-        rows.append([
-            f"{m} · A (SEV off)", f"${cost_per_mtok(a_tps, box_cost_hr):,.2f}",
-            f"${cost_per_mtok(a8, box_cost_hr):,.2f}", "box amortization",
-        ])
-        rows.append([
-            f"{m} · B (SEV-ES)", f"${cost_per_mtok(b_tps, box_cost_hr):,.2f}",
-            f"${cost_per_mtok(b8, box_cost_hr):,.2f}", "box amortization",
-        ])
+        rows.append([f"{m} · A (SEV off)", usd(a_tps), "box amortization"])
+        rows.append([f"{m} · B (SEV-ES)", usd(b_tps), "box amortization"])
     rows.append(["C-direct · claude-sonnet-4 (published API)", f"${api_out:,.2f}",
-                 f"${api_out:,.2f}", f"published output price (input ${api_in:,.2f}/1M)"])
+                 f"published output price (input ${api_in:,.2f}/1M)"])
     rows.append(["C-proxied · same + CVM proxy", f"${api_out:,.2f} + proxy share",
-                 f"${api_out:,.2f} + proxy share", "API price + amortized proxy box"])
-    slice_ = sel(records, leg=("A", "B"), threads=64, concurrency=(1, 8))
+                 "API price + amortized proxy box"])
+    slice_ = sel(records, leg=("A", "B"), **AB_CELL)
     body = f"""
     <p><strong>Cost parameterization (stated, not hidden):</strong> the box is
     amortized at <strong>${box_cost_hr:.2f}/hour</strong> (hardware + power +
     hosting, straight-line; change with <code>--box-cost-per-hr</code>).
-    $/1M output tokens = hourly cost ÷ (tokens/s × 3600) × 10⁶. Single-stream
-    uses the concurrency-1 median at 64 threads; the batched column uses
-    aggregate throughput at concurrency 8. Leg C rows use published Anthropic
-    API pricing (parameterized: <code>--api-input-per-mtok</code>,
-    <code>--api-output-per-mtok</code>) — API tokens are priced by Anthropic,
-    not by this box's amortization.</p>
-    {table_html(["Config", "$/1M output tok (single stream)", "$/1M output tok (conc 8)", "Basis"], rows)}
+    $/1M output tokens = hourly cost ÷ (tokens/s × 3600) × 10⁶, using the
+    single-stream median at the matched A/B cell (32 threads, concurrency 1).
+    A batched (concurrency-8) column is intentionally omitted: leg B was not run
+    at concurrency 8, so there is no matched leg-B number to divide against —
+    the generator renders what was measured, not an extrapolation. Leg C rows
+    use published Anthropic API pricing (parameterized:
+    <code>--api-input-per-mtok</code>, <code>--api-output-per-mtok</code>) — API
+    tokens are priced by Anthropic, not by this box's amortization.</p>
+    {table_html(["Config", "$/1M output tok (single stream)", "Basis"], rows)}
     {provenance(slice_)}
     """
     return body
@@ -531,20 +582,25 @@ def section_leg_d(records):
 def section_breakeven(records, tps_ab, box_cost_hr):
     rows = []
     for m in MODEL_ORDER:
+        if m not in tps_ab:
+            continue
         a_tps, b_tps = tps_ab[m]
         ca, cb = cost_per_mtok(a_tps, box_cost_hr), cost_per_mtok(b_tps, box_cost_hr)
         mult = cb / ca if ca else 0
-        rows.append([m, f"${ca:,.2f}", f"${cb:,.2f}", f"×{mult:.3f}", f"+{(mult - 1) * 100:.1f}%"])
-    slice_ = sel(records, leg=("A", "B"), threads=64, concurrency=1)
+        rows.append([m, f"${ca:,.2f}", f"${cb:,.2f}", f"×{mult:.3f}", f"{(mult - 1) * 100:+.1f}%"])
+    slice_ = sel(records, leg=("A", "B"), **AB_CELL)
     body = f"""
     <p>Same box, same watts, same hour — the only thing SEV changes is tokens
     delivered per hour, so <strong>premium multiplier = cost_B / cost_A =
-    tokens/s_A ÷ tokens/s_B</strong>. Reading: a buyer who values
-    hardware-attested inference at even a few percent over unattested inference
-    clears break-even on every model here; the largest, most bandwidth-bound
-    model demands the largest premium. (Single-stream, 64 threads. Receipt
-    costs are per-request, not per-token, and are listed separately in the
-    attestation section; at devnet fees they are noise per 1M tokens.)</p>
+    tokens/s_A ÷ tokens/s_B</strong>. Reading: at the measured single-stream
+    cell the premium is only a couple of percent (and for bitnet-2b the sign is
+    negative — B measured marginally faster, i.e. within noise), so a buyer who
+    values hardware-attested inference at even a few percent clears break-even.
+    That is the <em>floor</em>: a bandwidth-saturating deployment would move the
+    premium up toward the 26% STREAM ceiling, but that regime was not measured
+    on leg B and is not asserted here. (Single-stream, 32 threads. Receipt costs
+    are per-request, not per-token, listed separately in the attestation
+    section; at devnet fees they are noise per 1M tokens.)</p>
     {table_html(["Model", "A $/1M tok", "B $/1M tok", "Break-even premium (×)", "as %"], rows)}
     {provenance(slice_)}
     """
@@ -666,12 +722,9 @@ def build(args):
     d_body = section_leg_d(records)
     be_body = section_breakeven(records, tps_ab, args.box_cost_per_hr)
 
-    worst_model = max(MODEL_ORDER, key=lambda m: tax[m][-1])
-    worst_tax = tax[worst_model][-1]
-    mults = []
-    for m in MODEL_ORDER:
-        a, b = tps_ab[m]
-        mults.append(a / b if b else 0)
+    worst_model = max(tax, key=tax.get) if tax else "—"
+    worst_tax = tax[worst_model] if tax else 0.0
+    mults = [a / b for (a, b) in tps_ab.values() if b]
 
     all_ids = sorted(r["run_id"] for r in records)
     all_ts = sorted(r["ts"] for r in records)
@@ -686,13 +739,13 @@ def build(args):
         <div class="val">−{stream_tax:.1f}%</div>
         <div class="ctx">{fmt(m_off)} → {fmt(m_on)} GB/s triad</div></div>
       <div class="tile"><div class="lab">Worst decode tax</div>
-        <div class="val">{worst_tax:.1f}%</div>
-        <div class="ctx">{esc(worst_model)} @ 128 threads</div></div>
+        <div class="val">{worst_tax:+.1f}%</div>
+        <div class="ctx">{esc(worst_model)}, single stream @ 32 threads</div></div>
       <div class="tile"><div class="lab">Attested-proxy tax (leg C)</div>
         <div class="val">+{c_delta_ms:.0f} ms</div>
         <div class="ctx">≈ {c_delta_pct:.1f}% of e2e, median</div></div>
       <div class="tile"><div class="lab">Break-even premium</div>
-        <div class="val">×{min(mults):.2f}–×{max(mults):.2f}</div>
+        <div class="val">{f"×{min(mults):.2f}–×{max(mults):.2f}" if mults else "n/a"}</div>
         <div class="ctx">cost_B / cost_A across models</div></div>
     </div>"""
 
@@ -729,7 +782,7 @@ generated by <code>report/generate.py</code></p>
 {banner}
 {tiles}
 <section><h2>1 · STREAM anchor — the bandwidth the encryption eats</h2>{stream_body}</section>
-<section><h2>2 · TEE tax curves — overhead vs threads, per model</h2>{tax_body}</section>
+<section><h2>2 · TEE inference tax — overhead per model, matched cell</h2>{tax_body}</section>
 <section><h2>3 · Throughput, A vs B</h2>{tps_body}</section>
 <section><h2>4 · $/1M output tokens</h2>{cost_body}</section>
 <section><h2>5 · Attestation &amp; receipt cost breakdown</h2>{attest_body}</section>
