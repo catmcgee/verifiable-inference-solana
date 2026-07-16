@@ -23,16 +23,15 @@ feature family. `svm` is present, so plain virtualization works fine.
 
 ## Decision table row
 
-**UPDATE 2026-07-16 (session 3): BIOS SMEE enabled → now Row 3 (plain SEV).**
-Enabled SMEE (+ auto SEV Control) via the serial console. Post-reboot:
-`ccp: sev enabled`, `/dev/sev` present, flags `sme sev sev_es`, SEV API 1.55.
-But `kvm_amd: SEV-ES disabled (ASIDs 0-0)` and no `sev_snp` flag — plain SEV
-only. **Second BIOS pass needed for Row 1 (SNP):**
-1. CPU Common Options → **SEV-ES ASID Space Limit** — set nonzero (currently
-   0 ASIDs to ES/SNP). ES/SNP get 1..N-1, plain SEV gets N..1006. Pick N
-   (e.g. 100+) — Cat to confirm the split on this shared box.
-2. **SNP Memory (RMP Table) Coverage / SEV-SNP Support** (NBIO → SMU or
-   IOMMU/Security) enable; ensure IOMMU on.
+**UPDATE 2026-07-16 (session 3): BIOS fully SNP-ready; SEV+SEV-ES LIVE; SNP blocked on kernel.**
+Two BIOS passes via serial console set: SMEE=Enable, SEV Control=Enable,
+**SEV-ES ASID Space Limit=100**, **SNP Memory (RMP Table) Coverage=Enabled**.
+Post-reboot: `kvm_amd: SEV enabled (ASIDs 100-1006)`, `SEV-ES enabled
+(ASIDs 1-99)`, `/dev/sev` present, flags `sme sev sev_es`. **SEV + SEV-ES work.**
+SNP NOT active: no `sev_snp` flag, no RMP dmesg, `/sys/module/kvm_amd/
+parameters/sev_snp` absent. **Root cause = kernel 6.8.0 < 6.11** (KVM SNP host
+support merged upstream in 6.11). BIOS side is complete; SNP needs a newer
+kernel (Ubuntu HWE / mainline 6.11+ / AMD SNP host branch). No more BIOS work.
 
 Originally **Row 4 — "SEV disabled in BIOS"** (memory encryption not enabled).
 Target remains **Row 1 — "Host control + SNP capable"**: we launch BOTH legs
