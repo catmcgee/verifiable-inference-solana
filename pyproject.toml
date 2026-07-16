@@ -1,0 +1,23 @@
+[project]
+name = "verified-inference"
+version = "0.1.0"
+description = "TEE cost & trust measurement harness — mock-first, real backends land in P2"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+    "click>=8.1",
+    "jsonschema>=4.23",
+    "pynacl>=1.5",
+]
+
+[project.scripts]
+vinfer = "cli.vinfer:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["server", "harness", "cli"]

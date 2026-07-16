@@ -1,0 +1,12 @@
+{
+  "n_per_cell": 3,
+  "grid": {
+    "leg": ["A"],
+    "model": ["bitnet-2b", "8b-q4"],
+    "prompt_tokens": [128],
+    "output_tokens": [16],
+    "threads": [32],
+    "concurrency": [1, 4],
+    "input_mode": ["tls"]
+  }
+}
