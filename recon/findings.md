@@ -2,10 +2,23 @@
 
 Recon run 2026-07-16 via `recon/run_recon.sh` (raw output in `recon/raw/`).
 Access: `ssh sunburst` → 213.239.141.40, user `ubuntu`, Ubuntu 24.04 LTS
-(noble), kernel 6.8.0-117-generic. Provisioned from sunburst.monogon.dev,
-project "Cat".
+(noble). Provisioned from sunburst.monogon.dev, project "Cat".
 
-## Headline: we got the BARE-METAL HOST, and SEV is disabled in BIOS
+> **CURRENT STATE (verified live on the box, superseding the original headline
+> below).** Kernel is now **`6.17.0-40-generic`** (HWE), not 6.8. SEV, SEV-ES,
+> **and SEV-SNP are all enabled at the HOST**: CPU flags `sev sev_es sev_snp`,
+> `/dev/sev` present, `/sys/module/kvm_amd/parameters/sev_snp=Y`. `/dev/sev-guest`
+> is absent (this is the host, not a guest). Decision-table row achieved:
+> **Row 1 host-control** for launch, BUT the **SNP *guest* does not boot yet**
+> (upstream guest_memfd/APIC gap, see LEDGER session 6) — so **leg B runs on
+> SEV-ES, and its attestation grade is honestly `launch-only`** (no signed
+> runtime report). Any "SNP" claim about measured leg-B data is an overclaim.
+> STREAM both SEV states: SEV-off (plain VM) 346.19 GB/s vs SEV-ES 256.10 GB/s =
+> **26.0% bandwidth tax** (`runs/legAB-stream.jsonl`; the SEV-off-only baseline
+> below, 357.1 GB/s bare-metal 128t, is a separate anchor — do not pool them).
+> The original text below is kept for history; it is STALE as of session 3+.
+
+## (STALE, session-2) Headline: we got the BARE-METAL HOST, and SEV is disabled in BIOS
 
 This is not a VM. Evidence:
 
