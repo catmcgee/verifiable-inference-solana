@@ -16,8 +16,8 @@
   - B
   - D
   port: 8601
-  price_per_1m_in_usdc: 3.1933
-  price_per_1m_out_usdc: 12.7731
+  price_per_1m_in_usdc: 3.0636
+  price_per_1m_out_usdc: 12.2544
 - id: 8b-q4
   runtime: llamacpp
   weights: /home/ubuntu/models/llama-3.1-8b-instruct-Q4_K_M.gguf
@@ -29,8 +29,8 @@
   - A
   - B
   port: 8602
-  price_per_1m_in_usdc: 4.6727
-  price_per_1m_out_usdc: 18.6907
+  price_per_1m_in_usdc: 4.8166
+  price_per_1m_out_usdc: 19.2665
 - id: 8b-q8
   runtime: llamacpp
   weights: /home/ubuntu/models/llama-3.1-8b-instruct-Q8_0.gguf
@@ -42,8 +42,8 @@
   - A
   - B
   port: 8603
-  price_per_1m_in_usdc: 5.8017
-  price_per_1m_out_usdc: 23.2069
+  price_per_1m_in_usdc: 6.0296
+  price_per_1m_out_usdc: 24.1183
 - id: 70b-q4
   runtime: llamacpp
   weights: /home/ubuntu/models/llama-3.3-70b-instruct-Q4_K_M.gguf
@@ -55,8 +55,8 @@
   - A
   - B
   port: 8604
-  price_per_1m_in_usdc: 23.3866
-  price_per_1m_out_usdc: 93.5466
+  price_per_1m_in_usdc: 24.0689
+  price_per_1m_out_usdc: 96.2757
 - id: glm-5.2-q4
   runtime: llamacpp
   weights: /home/ubuntu/models/GLM-5.2-UD-Q4_K_XL/

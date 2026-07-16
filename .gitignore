@@ -5,6 +5,7 @@
 *.pem
 *.key
 *.keypair.json
+solana/.devnet-deployer.json
 id_ed25519*
 id_rsa*
 *_rsa
