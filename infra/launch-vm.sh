@@ -6,7 +6,7 @@
 #        ./launch-vm.sh --name legB --sev snp  --cpus 64 --ram 256G --ssh-port 2202
 set -euo pipefail
 
-QEMU="$HOME/src/qemu-9.2.4/build/qemu-system-x86_64"
+QEMU="$HOME/src/qemu-10.2.4/build/qemu-system-x86_64"
 OVMF_CODE=/usr/share/OVMF/OVMF_CODE_4M.fd
 IMG_BASE="$HOME/vms/noble-server-cloudimg-amd64.img"
 VMS="$HOME/vms"
@@ -52,7 +52,7 @@ VARS="$VMS/$NAME-OVMF_VARS.fd"
 [ -f "$VARS" ] || cp /usr/share/OVMF/OVMF_VARS_4M.fd "$VARS"
 
 BASE=(
-  -name "$NAME" -enable-kvm -cpu host -smp "$CPUS" -m "$RAM"
+  -name "$NAME" -enable-kvm -smp "$CPUS" -m "$RAM"
   -drive "file=$DISK,if=virtio,format=qcow2"
   -drive "file=$SEED,if=virtio,format=raw,readonly=on"
   -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22" -device virtio-net-pci,netdev=net0
@@ -61,18 +61,28 @@ BASE=(
 )
 
 if [ "$SEV" = "snp" ]; then
-  # SNP CVM: memfd-backed memory, cbitpos=51 (Zen4/Zen5), -bios instead of
-  # pflash (SNP guests do not support KVM readonly pflash).
+  # SNP CVM: memfd-backed memory, cbitpos=51 (Zen4/Zen5), -bios (SNP guests do
+  # not support KVM readonly pflash). NOTE: currently blocked at firmware by the
+  # APIC-page guest_memfd conversion gap (0xfee00000) — see LEDGER P3 notes.
   echo "launching $NAME (SEV-SNP, $CPUS vCPU, $RAM) ssh port $SSH_PORT"
   sudo "$QEMU" \
     -machine "q35,confidential-guest-support=sev0,memory-backend=ram0" \
-    -object "memory-backend-memfd,id=ram0,size=$RAM,share=true" \
-    -object "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1" \
-    -bios /usr/share/ovmf/OVMF.fd \
+    -object "memory-backend-memfd,id=ram0,size=$RAM,share=true,prealloc=false" \
+    -object "sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on" \
+    -bios /usr/share/ovmf/OVMF.amdsev.fd -cpu EPYC-v4 \
+    "${BASE[@]}"
+elif [ "$SEV" = "es" ]; then
+  # SEV-ES CVM: encrypted memory + register state, no guest_memfd (boots today).
+  # policy 0x5 = SEV-ES required + no-debug.
+  echo "launching $NAME (SEV-ES, $CPUS vCPU, $RAM) ssh port $SSH_PORT"
+  sudo "$QEMU" \
+    -machine "q35,confidential-guest-support=sev0" \
+    -object "sev-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,policy=0x5" \
+    -bios /usr/share/ovmf/OVMF.amdsev.fd -cpu EPYC-v4 \
     "${BASE[@]}"
 else
   echo "launching $NAME (no SEV, $CPUS vCPU, $RAM) ssh port $SSH_PORT"
-  sudo "$QEMU" -machine q35 \
+  sudo "$QEMU" -machine q35 -cpu host \
     -drive "if=pflash,format=raw,unit=0,file=$OVMF_CODE,readonly=on" \
     -drive "if=pflash,format=raw,unit=1,file=$VARS" \
     "${BASE[@]}"
