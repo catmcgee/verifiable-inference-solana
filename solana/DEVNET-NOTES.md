@@ -56,11 +56,13 @@ Live honest demo (grade `none`/NoTee, binding v2):
 has no hardware report — the honest outcome; a real CVM receipt carries grade
 `snp`/`launch-only` and the KDS chain runs for real).
 
-**Pending (cosmetic):** the deployed devnet bytecode still names discriminant 2
-`Mock` internally (invisible on-chain). The program upgrade that renames it to
-`NoTee` needs ~1.6 SOL for the upload buffer; the deployer holds 1.40 SOL and the
-devnet faucet is currently rate-limited. Source + IDL are already `NoTee`; the
-upgrade will land on the next top-up. No behavior depends on it.
+**RESOLVED:** after a deployer top-up, the program was upgraded in place with the
+`NoTee` build (deploy slot 476778319, sig `4oYTBd4tGXcVtGPcSWb4SpCdZJxAgE6SntXAMH2kJ2Hhb99FkbwXNLZ3YBNiDKLiD3wtgDsEwmur24Gjdh64Kb5y`).
+`vinfer verify runs/demo-receipt.json` re-confirmed fully green post-upgrade.
+Gotcha repeated itself: plain `anchor deploy` died on throttled devnet RPC
+("Data writes to account failed: Max retries exceeded", stranded 1.59 SOL
+buffer) — reclaim with `solana program close --buffers`, then
+`solana program deploy --with-compute-unit-price 50 --max-sign-attempts 200`.
 
 ## Devnet CU vs localnet (CU-NOTES.md)
 
