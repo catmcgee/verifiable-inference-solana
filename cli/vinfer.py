@@ -133,11 +133,19 @@ def verify(receipt_file: str):
 
     click.echo(f"verifying {receipt_file}")
 
-    try:
-        att = _get("/v1/attestation")
-    except Exception as e:
-        att = None
-        step("fetch attestation", "FAIL", str(e))
+    # Trust the receipt's OWN attestation doc when it ships one (self-verifiable,
+    # offline) — the on-chain PDA cross-check below is the real anchor, not this
+    # doc. Fall back to the live server for a freshly-minted receipt.
+    att = receipt.get("attestation")
+    if att:
+        step("attestation source", "PASS", "embedded in receipt (cross-checked on-chain below)")
+    else:
+        try:
+            att = _get("/v1/attestation")
+            step("attestation source", "PASS", "fetched from live server")
+        except Exception as e:
+            att = None
+            step("fetch attestation", "FAIL", str(e))
 
     if att:
         if att["grade"] == "snp":
@@ -181,6 +189,11 @@ def verify(receipt_file: str):
         else:
             step("registry PDA lookup (Solana devnet)", "PASS",
                  f"grade={chain['attestation_grade']} binding_v{chain['binding_version']} slot={chain['slot']}")
+            if att:
+                rd_match = chain["report_data_hash"] == att.get("report_data")
+                step("on-chain REPORT_DATA == attestation report_data",
+                     "PASS" if rd_match else "FAIL",
+                     "the PDA independently anchors the enclave-key binding")
             if att and att.get("binding_version", 1) == 2 and chain["binding_version"] == 2:
                 match = chain["registry_hash"] == att.get("registry_hash")
                 step("on-chain registry_hash == served registry_hash",

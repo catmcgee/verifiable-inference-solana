@@ -13,7 +13,40 @@ Not applied as Category A (would be gold-plating / risk): rewriting the report's
 A/B numeric aggregation — see B1. It is the correct home for the real fix, but a
 safe mechanical edit can't produce honest numbers from mismatched inputs.
 
-## Category B — flag + written plan (DO NOT touch without owner sign-off)
+## Category B — RESOLUTIONS (owner said "fix the things in audit.md", 2026-07-16)
+
+- **B1 — FIXED** (`fix(report): B1 — draw A/B tax from the matched cell`). The
+  generator now pins `AB_CELL` (threads=32, prompt=16, conc=1) — the only cell
+  both legs ran — via `ab_matched()`/`ab_tax()`; any model without both legs
+  renders **n/a**, never ÷0. Honest output: STREAM tax 26.0%, decode tax
+  bitnet −3.0% (noise) / 8b +2.0% / 70b +1.9%, break-even ×0.97–×1.02;
+  `section_stream` computes the tax from the matched plain-VM↔SEV-ES pair only
+  and shows bare-metal + the KDS-verified SNP CVM (376.91 GB/s) as separate
+  labeled anchors. Narrative corrected (26% is the bandwidth ceiling, not the
+  single-stream decode tax; no extrapolation asserted). Re-render verified free
+  of every fabricated marker (100%, ×0.00, 0 tok/s, −27.2%). SNP folded into
+  `all-sessions.jsonl` + `measurements.json`.
+- **B2 — FIXED (data + source); on-chain bytecode upgrade pending faucet.**
+  `AttestationGrade::Mock` → **`NoTee`** in state.rs (+ IDL, + `cli/devnet.py`
+  decode 2→`none`). The devnet demo re-registered with grade `noTee` (reads back
+  `none`); no live record claims mock. The deployed bytecode's discriminant is
+  unchanged (2) and never stored the *name* "Mock", so nothing on-chain carries
+  mock semantics. The cosmetic program upgrade (rename in bytecode) needs ~1.6
+  SOL for the buffer vs the deployer's 1.40 SOL — devnet faucet is rate-limited;
+  a wakeup retries the airdrop+upgrade. No behavior depends on it.
+- **B3 — FIXED.** Persistent demo enclave key + a self-verifiable receipt
+  (`runs/demo-receipt.json`) that embeds its attestation doc; the server now
+  embeds the attestation in every receipt too (`server/main.py _sign`), and
+  `vinfer verify` prefers the embedded doc and cross-anchors it against the
+  on-chain PDA (added a `report_data_hash` cross-check). Result:
+  `vinfer verify runs/demo-receipt.json` → **all PASS**, SNP row SKIPPED (grade
+  `none` — honest; a real CVM receipt carries grade snp/launch-only and the KDS
+  chain runs). New PDAs/txs in DEVNET-NOTES.md.
+- **B4 / B5 — remain as flagged** (paid / hardware / idle-box gated); see plans
+  below. No code fix is possible without spending on Anthropic calls (leg C),
+  B200s (leg D), or perturbing the live box (add-a-model, leg-B grid).
+
+## Category B — original plans (for reference)
 
 ### B1 — Report A/B numbers are fabricated (grid mismatch). HIGHEST PRIORITY.
 `report/generate.py` computes tax/throughput/cost/break-even on a grid

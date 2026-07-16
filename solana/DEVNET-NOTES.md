@@ -26,6 +26,42 @@ Binding v2 end to end with a fresh enclave ed25519 key:
   - tx `uvgeoTeLh1tvmAaczMRk1UhbK6sY3iVsmoExNwTBEqNbYwxbnYHQ53eSFkkwgJ8NVf14hpjdBXbcxwRtqcmF69s`
   - **CU 13,580** (ed25519 precompile + program)
 
+## Honest re-registration (audit B2/B3, 2026-07-16)
+
+The original demo above registered `attestation_grade = Mock`, which the audit
+flagged: after the "remove all mock" order, no live record should claim a mock
+grade, and `vinfer verify` could not go green against a zero-sig scratch receipt.
+Fixed:
+
+- Enum `AttestationGrade::Mock` → **`NoTee`** (state.rs) — the honest grade for a
+  key generated with plaintext memory (no TEE). Discriminant is unchanged (2), so
+  the on-chain byte and PDA layout are identical; only the source-level name and
+  the client decode (`cli/devnet.py` 2 → `"none"`) change. The deployed bytecode
+  never stored the *name* "Mock" — only the discriminant — so the on-chain record
+  carries no mock semantics.
+- `scripts/devnet-demo.ts` now uses a **persistent** enclave key
+  (`solana/.demo-enclave.json`, gitignored) and registers grade `noTee`, and
+  ships a **self-verifiable receipt** (`runs/demo-receipt.json`) embedding the
+  attestation doc so `vinfer verify` is green offline + cross-anchored on devnet.
+
+Live honest demo (grade `none`/NoTee, binding v2):
+
+- enclave pubkey `b07e57ca5fdb1ed1750fe7c78e49c1b5700fa21922034b293af34e97da86c1ec`
+- attestation PDA `9qKYSKdbqXSmTprenTTfZkknuuq4Rt9Ug3HvcZXWsHdG`
+  - register tx `4RNbDQNWPaRYppFE3BrYD7ntrG6QdutPgd1QafQMNMBNQtMDqT3WVzMrVLYEbRNG9Sqq4S52UXXSAHNWLuonxfTY` (CU 8,671)
+- receipt[0] PDA `9huWQGCysVz7oSVZQa83Gm5QbdokXgiL7RRZSNZXjQRh`
+  - post tx `5S4DsHp52bVJtmie3qd1bDz2iQemaFyoehpefv3iChh92moT2qop7Q7FoKL7aMcu1nkorKbCsKyQ8TCxALJ3UhAa` (CU 13,580)
+
+`vinfer verify runs/demo-receipt.json` → all PASS, SNP row SKIPPED (grade `none`
+has no hardware report — the honest outcome; a real CVM receipt carries grade
+`snp`/`launch-only` and the KDS chain runs for real).
+
+**Pending (cosmetic):** the deployed devnet bytecode still names discriminant 2
+`Mock` internally (invisible on-chain). The program upgrade that renames it to
+`NoTee` needs ~1.6 SOL for the upload buffer; the deployer holds 1.40 SOL and the
+devnet faucet is currently rate-limited. Source + IDL are already `NoTee`; the
+upgrade will land on the next top-up. No behavior depends on it.
+
 ## Devnet CU vs localnet (CU-NOTES.md)
 
 register_attestation 10,171 (devnet) vs 8,671 (localnet) — devnet higher due to

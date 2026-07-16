@@ -67,9 +67,11 @@ def parse_attestation(data: bytes) -> dict:
         "model_weights_hash": model_weights_hash.hex(),
         "runtime_version": runtime_version,
         "enclave_pubkey": enclave.hex(),
-        # Anchor enum order in state.rs: Snp=0, LaunchOnly=1, Mock=2. Must match
-        # exactly — a wrong map made an on-chain Mock record read back as "snp".
-        "attestation_grade": {0: "snp", 1: "launch-only", 2: "mock"}.get(grade, f"unknown({grade})"),
+        # Anchor enum order in state.rs: Snp=0, LaunchOnly=1, NoTee=2. Must match
+        # exactly — a wrong map once made an on-chain record read the wrong grade.
+        # (Discriminant 2 was formerly "mock"; the variant is now the honest
+        # NoTee — no TEE — and any legacy PDA at 2 reads as "none".)
+        "attestation_grade": {0: "snp", 1: "launch-only", 2: "none"}.get(grade, f"unknown({grade})"),
         "slot": slot,
         "receipt_count": receipt_count,
         "batch_count": batch_count,

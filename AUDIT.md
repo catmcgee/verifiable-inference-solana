@@ -1,5 +1,14 @@
 # AUDIT — verified-inference (independent audit, 2026-07-16)
 
+> **POST-FIX STATUS (2026-07-16, after "fix the things in audit.md").** Category A
+> was applied by the auditor. Category **B1, B2, B3 are now FIXED** — see
+> `FIXES.md` "Category B — RESOLUTIONS": the report draws A/B from the matched
+> cell (no fabricated numbers; honest ~2% decode tax, 26% STREAM), the on-chain
+> grade enum is `NoTee` (no mock; demo re-registered honestly), and
+> `vinfer verify runs/demo-receipt.json` is green (SNP row SKIPPED). B4/B5 remain
+> gated on paid calls / B200s / an idle box. The findings below are the ORIGINAL
+> snapshot and are kept verbatim for the record.
+
 Auditor pass over the repo at HEAD `3d83357`. Evidence = file:line, live command
 output, on-chain reads, commit hashes. SPEC (parent brief) is authoritative;
 where README/PLAN/recon disagree with the box or with each other, that is a

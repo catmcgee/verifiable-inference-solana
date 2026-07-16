@@ -190,6 +190,13 @@ def _sign(prompt: str, text: str, model_id: str, metrics: dict, receipts: dict) 
         receipt = app.state.signer.sign_receipt(prompt, text, model_weights_hash(model_id))
     finally:
         metrics["receipt_sign_ms"] = round((time.perf_counter() - t0) * 1000.0, 3)
+    # Embed the attestation doc the receipt was issued under, so the receipt is
+    # self-verifiable offline (`vinfer verify` checks it, then cross-anchors it
+    # against the on-chain PDA). No HPKE extras — just the binding fields.
+    receipt["attestation"] = build_attestation(
+        app.state.signer.pubkey_b64, REGISTRY_HASH, SERVER_BUILD_HASH,
+        registry=_attested_pairs(),
+    )
     receipts[receipt["receipt_id"]] = receipt
     return receipt
 

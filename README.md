@@ -40,6 +40,7 @@ uv run vinfer attest                          # real grade: none (bare metal) / 
 uv run vinfer infer --model bitnet-2b --prompt hello --receipt-out /tmp/r.json
 uv run vinfer infer --model bitnet-2b --prompt secret --e2e   # attestation-gated end-to-end sealed
 uv run vinfer verify /tmp/r.json              # checks live devnet records
+uv run vinfer verify runs/demo-receipt.json   # self-verifiable demo (green offline; SNP row SKIPPED, grade none)
 uv run vinfer pay --model bitnet-2b           # x402 session-payment flow (VINFER_X402=1 on the server)
 uv run make verify-registry                   # models.yaml integrity
 uv run python report/generate.py              # HTML from the real runs/ data

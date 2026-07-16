@@ -33,6 +33,7 @@ import nacl from "tweetnacl";
 import { createHash } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 const DEVNET_URL = "https://api.devnet.solana.com";
 const EXPLORER = (kind: "tx" | "address", id: string) =>
@@ -60,7 +61,7 @@ function receiptMessage(
 }
 
 async function main() {
-  const here = __dirname;
+  const here = path.dirname(fileURLToPath(import.meta.url));
   const deployerPath = path.join(here, "..", ".devnet-deployer.json");
   const idlPath = path.join(here, "..", "target", "idl", "verified_inference.json");
 
@@ -87,7 +88,21 @@ async function main() {
   console.log("");
 
   // --- enclave keypair (generated inside the CVM in production) --------------
-  const enclave = nacl.sign.keyPair();
+  // Persisted here so the shipped demo receipt keeps verifying across runs (the
+  // on-chain PDA is keyed by this pubkey). In production the key lives only
+  // inside the CVM and is never written to disk.
+  const enclaveKeyPath = path.join(here, "..", ".demo-enclave.json");
+  let enclave: nacl.SignKeyPair;
+  if (fs.existsSync(enclaveKeyPath)) {
+    enclave = nacl.sign.keyPair.fromSecretKey(
+      Uint8Array.from(JSON.parse(fs.readFileSync(enclaveKeyPath, "utf8")))
+    );
+    console.log("enclave key: loaded persisted demo key");
+  } else {
+    enclave = nacl.sign.keyPair();
+    fs.writeFileSync(enclaveKeyPath, JSON.stringify(Array.from(enclave.secretKey)));
+    console.log("enclave key: generated + persisted", enclaveKeyPath);
+  }
   const enclavePk = Buffer.from(enclave.publicKey); // 32 bytes
   console.log("enclave ed25519 pubkey:", Buffer.from(enclavePk).toString("hex"));
 
@@ -143,7 +158,10 @@ async function main() {
       reportDataHash: Array.from(reportDataHash),
       modelWeightsHash: Array.from(modelHash),
       runtimeVersion: "bitnet.cpp@devnet-demo",
-      attestationGrade: { mock: {} },
+      // Honest grade: this demo enclave key was generated on a host with
+      // plaintext memory (not inside a TEE), so it is NoTee — never "mock".
+      // The receipt still cryptographically binds model + I/O to the key.
+      attestationGrade: { noTee: {} },
       bindingVersion: 2,
       registryHash: Array.from(registryHash),
     })
@@ -219,6 +237,43 @@ async function main() {
   console.log("receipt[0]   :", EXPLORER("address", results.receiptPda));
   console.log("register tx  :", EXPLORER("tx", results.registerAttestation.sig));
   console.log("receipt tx   :", EXPLORER("tx", results.postReceipt.sig));
+  console.log("");
+
+  // --- ship a self-verifiable demo receipt ----------------------------------
+  // Same schema the server emits (server/receipts/signer.py), with the embedded
+  // attestation doc so `vinfer verify runs/demo-receipt.json` is green offline
+  // and cross-anchored against the on-chain PDA registered above.
+  const serverBuildHash = sha256(Buffer.from("server-build"));
+  const demoReceipt = {
+    receipt_id: postSig.slice(0, 16),
+    enclave_pubkey_b64: enclavePk.toString("base64"),
+    prompt_hash: promptHash.toString("hex"),
+    response_hash: responseHash.toString("hex"),
+    model_hash: modelHash.toString("hex"),
+    timestamp: ts.toNumber(),
+    sig_b64: Buffer.from(nacl.sign.detached(msg, enclave.secretKey)).toString("base64"),
+    attestation: {
+      grade: "none", // NoTee — no hardware report; SNP row verifies as SKIPPED
+      binding_version: 2,
+      enclave_pubkey_b64: enclavePk.toString("base64"),
+      report_data: reportDataHash.toString("hex"),
+      registry_hash: registryHash.toString("hex"),
+      registry: [
+        { id: "bitnet-b1.58-2b4t", weights_sha256: modelHash.toString("hex") },
+      ],
+      server_build_hash: serverBuildHash.toString("hex"),
+      sev_mode: "off",
+      note:
+        "Devnet pipeline demo. The enclave key was generated with plaintext " +
+        "memory (grade none / NoTee): the receipt binds model + I/O to the key " +
+        "and is anchored on-chain, but proves no confidentiality. A real CVM " +
+        "receipt carries grade snp/launch-only.",
+    },
+  };
+  const receiptOut = path.join(here, "..", "..", "runs", "demo-receipt.json");
+  fs.writeFileSync(receiptOut, JSON.stringify(demoReceipt, null, 2));
+  results.demoReceiptPath = "runs/demo-receipt.json";
+  console.log("shipped self-verifiable receipt ->", receiptOut);
   console.log("");
 
   // Emit a machine-readable summary (stdout only) for DEVNET-NOTES.md.

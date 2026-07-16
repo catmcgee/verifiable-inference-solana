@@ -9,8 +9,11 @@ pub enum AttestationGrade {
     Snp,
     /// Plain SEV / SEV-ES: launch-time measurement only, no signed runtime report.
     LaunchOnly,
-    /// Local/mock testing (P0 scaffold, localnet).
-    Mock,
+    /// No TEE: the enclave key was generated with plaintext memory (e.g. on bare
+    /// metal or a laptop). The receipt still cryptographically binds model + I/O
+    /// to the key, but a verifier can conclude nothing about confidentiality.
+    /// This is the honest grade for the devnet pipeline demo — there is no "mock".
+    NoTee,
 }
 
 /// One per CVM boot, keyed by the enclave's ed25519 signing pubkey.
@@ -20,7 +23,7 @@ pub enum AttestationGrade {
 pub struct AttestationAccount {
     /// Enclave signing key generated inside the CVM at boot (never persisted outside).
     pub enclave_ed25519_pubkey: [u8; 32],
-    /// SNP launch measurement (48 bytes). Zeroed for LaunchOnly/Mock grades.
+    /// SNP launch measurement (48 bytes). Zeroed for LaunchOnly/NoTee grades.
     pub snp_measurement: [u8; 48],
     /// REPORT_DATA hash as embedded in the SNP report:
     /// v1: hash(enclave_ed25519_pubkey || model_weights_hash || server_build_hash)
