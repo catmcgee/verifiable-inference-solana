@@ -105,9 +105,16 @@ describe("verified_inference", () => {
   const responseHash = sha256(Buffer.from("paris"));
   const modelHash = sha256(Buffer.from("bitnet-b1.58-2B4T-weights"));
   const snpMeasurement = Buffer.alloc(48, 7);
-  const reportDataHash = sha256(
-    Buffer.concat([enclavePk, modelHash, sha256(Buffer.from("server-build"))])
+  // Binding v2: registry_hash = sha256 over sorted (model_id, weights_sha256)
+  // pairs (ADDON-REGISTRY.md Step 3). Single-model registry here.
+  const registryHash = sha256(
+    Buffer.from(`bitnet-b1.58-2b4t:${modelHash.toString("hex")}`)
   );
+  // v2 REPORT_DATA binds the registry hash, not a single model hash.
+  const reportDataHash = sha256(
+    Buffer.concat([enclavePk, registryHash, sha256(Buffer.from("server-build"))])
+  );
+  const zeroRegistryHash = Buffer.alloc(32, 0);
 
   // CU bookkeeping -----------------------------------------------------------
   const cuLog: { label: string; cu: number; txBytes: number }[] = [];
@@ -156,6 +163,8 @@ describe("verified_inference", () => {
         modelWeightsHash: Array.from(modelHash),
         runtimeVersion: "bitnet.cpp@p0-scaffold",
         attestationGrade: { mock: {} },
+        bindingVersion: 2,
+        registryHash: Array.from(registryHash),
       })
       .accounts({ payer: provider.wallet.publicKey })
       .instruction();
@@ -196,7 +205,7 @@ describe("verified_inference", () => {
   // register_attestation
   // ---------------------------------------------------------------------------
 
-  it("registers an attestation (happy path)", async () => {
+  it("registers a v2 (registry-hash binding) attestation (happy path)", async () => {
     const sig = await program.methods
       .registerAttestation({
         enclaveEd25519Pubkey: Array.from(enclave.publicKey),
@@ -205,6 +214,8 @@ describe("verified_inference", () => {
         modelWeightsHash: Array.from(modelHash),
         runtimeVersion: "bitnet.cpp@p0-scaffold",
         attestationGrade: { mock: {} },
+        bindingVersion: 2,
+        registryHash: Array.from(registryHash),
       })
       .accounts({ payer: provider.wallet.publicKey })
       .rpc({ commitment: "confirmed" });
@@ -217,9 +228,65 @@ describe("verified_inference", () => {
     expect(Buffer.from(att.modelWeightsHash)).to.deep.equal(modelHash);
     expect(att.runtimeVersion).to.equal("bitnet.cpp@p0-scaffold");
     expect(att.attestationGrade).to.deep.equal({ mock: {} });
+    expect(att.bindingVersion).to.equal(2);
+    expect(Buffer.from(att.registryHash)).to.deep.equal(registryHash);
     expect(att.slot.toNumber()).to.be.greaterThan(0);
     expect(att.receiptCount.toNumber()).to.equal(0);
     expect(att.batchCount.toNumber()).to.equal(0);
+  });
+
+  it("registers a v1 (legacy model-hash binding) attestation", async () => {
+    const v1Enclave = nacl.sign.keyPair();
+    const v1Pk = Buffer.from(v1Enclave.publicKey);
+    const [v1Pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("attestation"), v1Pk],
+      program.programId
+    );
+    // v1 REPORT_DATA binds the single model hash; registry_hash is zeroed.
+    const v1ReportDataHash = sha256(
+      Buffer.concat([v1Pk, modelHash, sha256(Buffer.from("server-build"))])
+    );
+    await program.methods
+      .registerAttestation({
+        enclaveEd25519Pubkey: Array.from(v1Enclave.publicKey),
+        snpMeasurement: Array.from(snpMeasurement),
+        reportDataHash: Array.from(v1ReportDataHash),
+        modelWeightsHash: Array.from(modelHash),
+        runtimeVersion: "bitnet.cpp@p0-scaffold-v1",
+        attestationGrade: { mock: {} },
+        bindingVersion: 1,
+        registryHash: Array.from(zeroRegistryHash),
+      })
+      .accounts({ payer: provider.wallet.publicKey })
+      .rpc({ commitment: "confirmed" });
+
+    const att = await program.account.attestationAccount.fetch(v1Pda);
+    expect(att.bindingVersion).to.equal(1);
+    expect(Buffer.from(att.registryHash)).to.deep.equal(zeroRegistryHash);
+    expect(Buffer.from(att.modelWeightsHash)).to.deep.equal(modelHash);
+    expect(Buffer.from(att.reportDataHash)).to.deep.equal(v1ReportDataHash);
+  });
+
+  it("rejects an unknown binding version", async () => {
+    const badEnclave = nacl.sign.keyPair();
+    try {
+      await program.methods
+        .registerAttestation({
+          enclaveEd25519Pubkey: Array.from(badEnclave.publicKey),
+          snpMeasurement: Array.from(snpMeasurement),
+          reportDataHash: Array.from(reportDataHash),
+          modelWeightsHash: Array.from(modelHash),
+          runtimeVersion: "bitnet.cpp@p0-scaffold",
+          attestationGrade: { mock: {} },
+          bindingVersion: 3,
+          registryHash: Array.from(registryHash),
+        })
+        .accounts({ payer: provider.wallet.publicKey })
+        .rpc({ commitment: "confirmed" });
+      assert.fail("should have failed: unknown binding version");
+    } catch (err: any) {
+      assert.match(err.toString(), /InvalidBindingVersion/);
+    }
   });
 
   it("fails to re-register the same enclave pubkey", async () => {
@@ -232,6 +299,8 @@ describe("verified_inference", () => {
           modelWeightsHash: Array.from(modelHash),
           runtimeVersion: "bitnet.cpp@p0-scaffold-reboot",
           attestationGrade: { snp: {} },
+          bindingVersion: 2,
+          registryHash: Array.from(registryHash),
         })
         .accounts({ payer: provider.wallet.publicKey })
         .rpc({ commitment: "confirmed" });

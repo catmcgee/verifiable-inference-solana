@@ -22,11 +22,19 @@ pub struct AttestationAccount {
     pub enclave_ed25519_pubkey: [u8; 32],
     /// SNP launch measurement (48 bytes). Zeroed for LaunchOnly/Mock grades.
     pub snp_measurement: [u8; 48],
-    /// hash(enclave_ed25519_pubkey || model_weights_hash || server_build_hash)
-    /// as embedded in the SNP report's REPORT_DATA field.
+    /// REPORT_DATA hash as embedded in the SNP report:
+    /// v1: hash(enclave_ed25519_pubkey || model_weights_hash || server_build_hash)
+    /// v2: hash(enclave_ed25519_pubkey || registry_hash || server_build_hash)
     pub report_data_hash: [u8; 32],
-    /// Hash of the model weights served by this enclave.
+    /// Hash of the model weights served by this enclave (v1 binding; kept for
+    /// backward compat — v2 registrations may still fill it for a single model).
     pub model_weights_hash: [u8; 32],
+    /// Attestation binding scheme: 1 = legacy single-model-hash binding,
+    /// 2 = registry-hash binding (see ADDON-REGISTRY.md Step 3).
+    pub binding_version: u8,
+    /// v2 only: sha256 over sorted (model_id, weights_sha256) pairs of the
+    /// model registry this enclave serves. Zeroed for v1 registrations.
+    pub registry_hash: [u8; 32],
     /// Short runtime version string, e.g. "bitnet.cpp@a1b2c3".
     #[max_len(64)]
     pub runtime_version: String,

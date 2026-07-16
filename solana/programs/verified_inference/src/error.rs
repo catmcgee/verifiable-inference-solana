@@ -22,4 +22,6 @@ pub enum VerifiedInferenceError {
     EmptyBatch,
     #[msg("Invalid zkML ladder rung id (expected 1..=4)")]
     InvalidRungId,
+    #[msg("Invalid attestation binding version (expected 1 or 2)")]
+    InvalidBindingVersion,
 }
