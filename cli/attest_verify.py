@@ -12,7 +12,7 @@ verify_attestation(doc) decides whether the enclave's HPKE key can be trusted:
        - "launch-only" (SEV/SEV-ES): binding holds but there is NO hardware
          proof — return trusted=False with a clear reason; the caller may proceed
          only under an explicit --insecure-allow-unattested.
-       - "none"/"mock": not trustworthy.
+       - "none": not trustworthy (no TEE).
 
 Returns a Verdict; the e2e client refuses to send a sealed prompt unless the key
 is trusted (or the user explicitly overrode).
@@ -60,7 +60,7 @@ def verify_attestation(doc: dict, allow_unattested: bool = False) -> Verdict:
                        "SNP report verified → VCEK → AMD KDS; key is hardware-attested"
                        if ok else f"SNP report verification failed: {why}")
 
-    if grade in ("launch-only", "none", "mock"):
+    if grade in ("launch-only", "none"):
         return Verdict(
             allow_unattested, grade, True, None,
             f"grade={grade}: binding holds but there is NO signed hardware report — "

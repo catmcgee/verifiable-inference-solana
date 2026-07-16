@@ -28,20 +28,25 @@ inference tax climbs toward as models get larger. That is the thesis, measured.
 - **Payments:** token-metered design on the Solana session-intent spec
   (`server/x402/DESIGN.md`), P5.
 
-## Quickstart (local, mock backend)
+## Quickstart (real only — there is no mock)
+
+The server serves the actual models in `models.yaml` via `infra/run-servers.sh`;
+it does not mock anything. Point the CLI/web at a running server (the box):
 
 ```bash
-uv sync
-uv run uvicorn server.main:app --port 8477      # terminal 1
-uv run vinfer attest                            # terminal 2
+ssh -L 8477:127.0.0.1:8477 sunburst          # tunnel to the real server, then:
+export VINFER_URL=http://127.0.0.1:8477
+uv run vinfer attest                          # real grade: none (bare metal) / launch-only (in CVM) / snp
 uv run vinfer infer --model bitnet-2b --prompt hello --receipt-out /tmp/r.json
-uv run vinfer verify /tmp/r.json                # PASS/FAIL/SKIPPED per step (checks devnet)
-uv run make verify-registry                     # models.yaml integrity
-uv run python report/generate.py                # HTML from synthetic fixtures
+uv run vinfer infer --model bitnet-2b --prompt secret --e2e   # attestation-gated end-to-end sealed
+uv run vinfer verify /tmp/r.json              # checks live devnet records
+uv run vinfer pay --model bitnet-2b           # x402 session-payment flow (VINFER_X402=1 on the server)
+uv run make verify-registry                   # models.yaml integrity
+uv run python report/generate.py              # HTML from the real runs/ data
 ```
 
-Real backend on the box: `VINFER_BACKEND=llama` with llama-servers from
-`infra/run-servers.sh`. Add a model: see the checklist in ADDON-REGISTRY.md
+On the box, start the stack with `infra/run-servers.sh` then the vinfer server
+(`VINFER_SEV_MODE=off|es|snp`). Add a model: ADDON-REGISTRY.md checklist
 (`make bench MODEL=<id>` → `make pricing` → re-attest → `make payskill`).
 
 ## Layout
@@ -56,5 +61,5 @@ tachyon deferred to B200s) · `web/` (Next.js UI) · `payskill/` (generated).
 
 - Sunburst SSH key: path-only, never read/print/commit. No secrets in the repo.
 - `models.yaml` is the only model config; prices + pay.sh listing are generated.
-- Attestation grades are never faked (`mock`/`launch-only`/`snp` mean what they
+- Attestation grades are never faked (`none`/`launch-only`/`snp` mean what they
   say); `vinfer verify` prints SKIPPED rather than pretending.

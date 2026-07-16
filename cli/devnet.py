@@ -67,7 +67,7 @@ def parse_attestation(data: bytes) -> dict:
         "model_weights_hash": model_weights_hash.hex(),
         "runtime_version": runtime_version,
         "enclave_pubkey": enclave.hex(),
-        "attestation_grade": {0: "snp", 1: "launch-only", 2: "mock"}.get(grade, f"unknown({grade})"),
+        "attestation_grade": {0: "none", 1: "launch-only", 2: "snp"}.get(grade, f"unknown({grade})"),
         "slot": slot,
         "receipt_count": receipt_count,
         "batch_count": batch_count,

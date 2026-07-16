@@ -50,7 +50,7 @@ def existing_run_ids(out_path: Path) -> set[str]:
 
 
 def one_request(client: httpx.Client, base_url: str, cell: dict, run_id: str) -> dict:
-    prompt = "measure " * max(1, cell["prompt_tokens"] // 1)  # mock: token≈word
+    prompt = "measure " * max(1, cell["prompt_tokens"])  # benchmark filler (token≈word)
     r = client.post(
         f"{base_url}/v1/infer",
         json={"model": cell["model"], "prompt": prompt, "max_tokens": cell["output_tokens"]},

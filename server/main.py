@@ -3,7 +3,7 @@
 Registry-driven (models.yaml is the single source of truth — ADDON step 1/2).
 Canonical surface: POST /v1/chat/completions · GET /v1/models · GET
 /v1/attestation · GET /v1/receipts/{id}. POST /v1/infer is a thin raw-prompt
-alias used by the harness. Backends: VINFER_BACKEND=mock (default) | llama.
+alias used by the harness. Serves real models from models.yaml (no mock).
 """
 
 from __future__ import annotations
@@ -19,27 +19,26 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from server import mock_backend, registry, runtimes
-from server.attest.mock import build_attestation
+from server import registry, runtimes
+from server.attest.report import build_attestation
 from server.receipts.signer import EnclaveSigner
 from server.x402 import middleware as x402
 
-BACKEND = os.environ.get("VINFER_BACKEND", "mock")
+# REAL backend only. There is no mock — the server serves the actual models in
+# models.yaml via their runtimes, or it errors. (This is a measurement/serving
+# system; a mock would make every number and every attestation a lie.)
+BACKEND = "llama"
 REGISTRY = registry.load()
 
 
 def _attested_pairs() -> list[dict]:
-    """What this process ACTUALLY serves. Mock serves mock weights, so it
-    attests mock hashes — attestation never claims weights that aren't there."""
-    if BACKEND == "mock":
-        return [{"id": m.id, "weights_sha256": mock_backend.model_weights_hash(m.id).hex()}
-                for m in REGISTRY.values()]
+    """The models this process ACTUALLY serves (real weights only)."""
     return [{"id": m.id, "weights_sha256": m.weights_sha256}
             for m in REGISTRY.values() if m.servable]
 
 
 REGISTRY_HASH = registry.pairs_hash(_attested_pairs())
-SERVER_BUILD = f"p2-{BACKEND}-0.3.0"
+SERVER_BUILD = "vinfer-0.4.0"
 SERVER_BUILD_HASH = hashlib.sha256(SERVER_BUILD.encode()).digest()
 
 
@@ -48,26 +47,19 @@ def _servable(model_id: str) -> registry.ModelEntry:
     if entry is None:
         raise HTTPException(404, f"unknown model {model_id!r}")
     if not entry.servable:
-        raise HTTPException(503, f"model {model_id!r} is pending (weights not on box yet)")
+        raise HTTPException(503, f"model {model_id!r} has no weights on this host")
     return entry
 
 
 def model_weights_hash(model_id: str) -> bytes:
-    if BACKEND == "mock":
-        return mock_backend.model_weights_hash(model_id)
     return _servable(model_id).weights_hash
 
 
 async def _generate(model_id: str, prompt: str, max_tokens: int) -> dict:
-    if BACKEND == "mock":
-        return await mock_backend.generate(model_id, prompt, max_tokens)
     return await runtimes.for_model(_servable(model_id)).generate(prompt, max_tokens)
 
 
 async def _chat(model_id: str, messages: list[dict], max_tokens: int) -> dict:
-    if BACKEND == "mock":
-        prompt = "\n".join(m.get("content", "") for m in messages)
-        return await mock_backend.generate(model_id, prompt, max_tokens)
     return await runtimes.for_model(_servable(model_id)).chat(messages, max_tokens)
 
 
@@ -114,7 +106,7 @@ async def models():
                 "id": m.id, "object": "model", "owned_by": "verified-inference",
                 "quant": m.quant, "runtime": m.runtime, "legs": list(m.legs),
                 "ctx_max": m.ctx_max, "backend": BACKEND,
-                "status": "available" if (m.servable or BACKEND == "mock") else "pending-weights",
+                "status": "available" if m.servable else "no-weights-on-host",
                 "weights_sha256": m.weights_sha256,
                 "price_per_1m_in_usdc": m.price_per_1m_in_usdc,
                 "price_per_1m_out_usdc": m.price_per_1m_out_usdc,

@@ -1,14 +1,15 @@
-"""Attestation document — honest about grade (never fakes SNP).
+"""Attestation document — honest grade from the real runtime. Never fakes, never
+"mock". Grade is derived from the ACTUAL SEV state of the process:
 
-Grade is derived from the ACTUAL runtime, not hardcoded:
-  VINFER_SEV_MODE=off            -> "none"        (no TEE; plaintext memory)
-  VINFER_SEV_MODE=sev|es         -> "launch-only" (memory encrypted; NO signed
-                                     runtime report — a verifier learns only that
-                                     SEV was requested at launch, per PLAN.md)
+  VINFER_SEV_MODE=off            -> "none"        (no TEE; plaintext memory —
+                                     e.g. the server running on bare metal)
+  VINFER_SEV_MODE=sev|es         -> "launch-only" (server is inside a SEV/SEV-ES
+                                     CVM: memory encrypted, but NO signed runtime
+                                     report — a verifier learns only that SEV was
+                                     requested at launch, per PLAN.md)
   VINFER_SEV_MODE=snp + a real snpguest report at VINFER_SNP_REPORT
                                  -> "snp"         (signed runtime report present)
   VINFER_SEV_MODE=snp, no report -> "launch-only" (honest downgrade)
-  backend=mock (local dev)       -> "mock"        (nothing real at all)
 
 REPORT_DATA binding (v2) = sha256(enclave_pubkey || registry_hash || build_hash),
 identical shape to the real SNP path so the verify pipeline is exercised end to
@@ -24,16 +25,13 @@ from pathlib import Path
 
 
 def current_grade() -> tuple[str, str]:
-    """Returns (grade, note) from the real environment. No faking."""
-    backend = os.environ.get("VINFER_BACKEND", "mock")
+    """Returns (grade, note) from the real environment. No faking, no mock."""
     sev = os.environ.get("VINFER_SEV_MODE", "off")
-    if backend == "mock":
-        return "mock", ("MOCK: local dev backend, no hardware. A verifier can "
-                        "conclude nothing.")
     if sev == "off":
-        return "none", ("No TEE: process memory is plaintext to the host/operator. "
-                        "The receipt proves the model+I/O binding to the enclave "
-                        "key, but not confidentiality.")
+        return "none", ("No TEE: this process runs with plaintext memory (e.g. on "
+                        "bare metal). The receipt still binds model+I/O to the "
+                        "enclave key, but confidentiality is NOT provided — run the "
+                        "server inside a SEV CVM for that.")
     if sev in ("sev", "es"):
         return "launch-only", (f"SEV{'-ES' if sev == 'es' else ''}: guest memory is "
                                "encrypted, but there is NO signed runtime report — a "
@@ -45,7 +43,7 @@ def current_grade() -> tuple[str, str]:
                            "verify report -> VCEK -> AMD KDS (ASK/ARK) chain.")
         return "launch-only", ("SEV-SNP requested but no snpguest report is wired "
                                "yet — honest downgrade to launch-only.")
-    return "mock", "unknown sev_mode; treating as mock."
+    return "none", f"unrecognized VINFER_SEV_MODE={sev!r}; treating as no TEE."
 
 
 def build_attestation(
