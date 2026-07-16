@@ -1,0 +1,2 @@
+{"session_id": "legA-plainvm-sevoff", "sev_mode": "off", "boot_s": 0, "model_load_s": 0, "first_attestation_s": 0, "stream_triad_gbs": 346.19, "kernel": "6.8.0-134-generic", "mitigations": "vm-guest", "ts": "2026-07-16T00:00:00Z"}
+{"session_id": "legB-sevescvm-es", "sev_mode": "es", "boot_s": 0, "model_load_s": 0, "first_attestation_s": 0, "stream_triad_gbs": 256.1, "kernel": "6.8.0-134-generic", "mitigations": "vm-guest", "ts": "2026-07-16T00:00:00Z"}

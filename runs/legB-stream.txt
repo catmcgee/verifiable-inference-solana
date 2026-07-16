@@ -1,0 +1,15 @@
+-------------------------------------------------------------
+STREAM version (condensed McCalpin)
+-------------------------------------------------------------
+Array size = 80000000 (elements), Offset = 0 (elements)
+Memory per array = 610.4 MiB (= 0.6 GiB).
+Total memory required = 1.8 GiB.
+Each kernel will be executed 20 times.
+Number of Threads requested = 32
+Function    Best Rate MB/s  Avg time     Min time     Max time
+Copy:          360050.2     0.003607     0.003555     0.003642
+Scale:         238842.8     0.005518     0.005359     0.005570
+Add:           253193.2     0.007669     0.007583     0.007715
+Triad:         256100.0     0.007562     0.007497     0.007604
+-------------------------------------------------------------
+TRIAD_GBS 256.100
