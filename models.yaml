@@ -57,6 +57,7 @@
   port: 8604
   price_per_1m_in_usdc: 24.0689
   price_per_1m_out_usdc: 96.2757
+# GLM-5.2 chat path needs llama-server --jinja; raw /completion works without it.
 - id: glm-5.2-q4
   runtime: llamacpp
   weights: /home/ubuntu/models/GLM-5.2-UD-Q4_K_XL/UD-Q4_K_XL/GLM-5.2-UD-Q4_K_XL-00001-of-00011.gguf
@@ -68,5 +69,5 @@
   - A
   - B
   port: 8605
-  price_per_1m_in_usdc: null
-  price_per_1m_out_usdc: null
+  price_per_1m_in_usdc: 21.9698
+  price_per_1m_out_usdc: 87.8792

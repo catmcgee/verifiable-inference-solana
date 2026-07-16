@@ -25,9 +25,11 @@ start bitnet-2b "$BITNET" "$HOME/src/BitNet/models/BitNet-b1.58-2B-4T/ggml-model
 start 8b-q4  "$LLAMA" "$MODELS/llama-3.1-8b-instruct-Q4_K_M.gguf" 8602
 start 8b-q8  "$LLAMA" "$MODELS/llama-3.1-8b-instruct-Q8_0.gguf" 8603
 start 70b-q4 "$LLAMA" "$MODELS/llama-3.3-70b-instruct-Q4_K_M.gguf" 8604
+# GLM-5.2 needs --jinja for its chat template; raw /completion works without it
+start glm-5.2-q4 "$LLAMA" "$MODELS/GLM-5.2-UD-Q4_K_XL/UD-Q4_K_XL/GLM-5.2-UD-Q4_K_XL-00001-of-00011.gguf" 8605 --jinja
 
 echo "waiting for health..."
-for p in 8601 8602 8603 8604; do
+for p in 8601 8602 8603 8604 8605; do
   for i in $(seq 1 120); do
     curl -s "http://127.0.0.1:$p/health" | grep -q '"ok"\|"status"' && { echo ":$p healthy"; break; } || sleep 5
   done
