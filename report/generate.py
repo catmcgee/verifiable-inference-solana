@@ -373,14 +373,14 @@ def section_tps_ab(records):
             fmt(med(r["itl_ms_p50"] for r in b), 2), fmt(p99([r["itl_ms_p99"] for r in b]), 2),
         ])
     svg = grouped_bar_svg(MODEL_ORDER,
-                          [("A · SEV off", SEV_OFF_SLOT, a_vals), ("B · SEV-SNP", SEV_ON_SLOT, b_vals)],
+                          [("A · SEV off", SEV_OFF_SLOT, a_vals), ("B · SEV-ES", SEV_ON_SLOT, b_vals)],
                           unit="", value_fmt=lambda v: fmt(v, 1))
     body = f"""
     <p>Median single-stream decode throughput (tokens/s) at 64 threads
     (the bandwidth saturation point), concurrency 1, all prompt/output cells
     pooled. The table adds inter-token latency: median of per-request p50 and
     p99-of-p99s.</p>
-    {legend_html([("A · SEV off", SEV_OFF_SLOT), ("B · SEV-SNP", SEV_ON_SLOT)])}
+    {legend_html([("A · SEV off", SEV_OFF_SLOT), ("B · SEV-ES", SEV_ON_SLOT)])}
     {svg}
     {table_view(["Model", "A tok/s", "B tok/s", "SEV tax",
                  "A ITL p50 (ms)", "A ITL p99 (ms)", "B ITL p50 (ms)", "B ITL p99 (ms)"], rows)}
@@ -406,7 +406,7 @@ def section_cost(records, tps_ab, box_cost_hr, api_in, api_out):
             f"${cost_per_mtok(a8, box_cost_hr):,.2f}", "box amortization",
         ])
         rows.append([
-            f"{m} · B (SEV-SNP)", f"${cost_per_mtok(b_tps, box_cost_hr):,.2f}",
+            f"{m} · B (SEV-ES)", f"${cost_per_mtok(b_tps, box_cost_hr):,.2f}",
             f"${cost_per_mtok(b8, box_cost_hr):,.2f}", "box amortization",
         ])
     rows.append(["C-direct · claude-sonnet-4 (published API)", f"${api_out:,.2f}",
@@ -521,7 +521,7 @@ def section_leg_d(records):
     fields carry the on-chain Groth16 verify transaction. Note the prover is
     itself memory-heavy: SEV taxes proving too. This leg proves
     <em>integrity</em> (public model, hashed input), not input privacy.</p>
-    {table_html(["Rung", "model field", "Prove (SEV off, median)", "Prove (SEV-SNP, median)",
+    {table_html(["Rung", "model field", "Prove (SEV off, median)", "Prove (SEV on, median)",
                  "SEV tax", "Off-chain verify (ms)", "On-chain verify (CU)", "Fee (lamports)"], rows)}
     {provenance(d)}
     """
@@ -682,7 +682,7 @@ def build(args):
 
     tiles = f"""
     <div class="tiles">
-      <div class="tile"><div class="lab">STREAM bandwidth tax (SEV-SNP)</div>
+      <div class="tile"><div class="lab">STREAM bandwidth tax (SEV-ES)</div>
         <div class="val">−{stream_tax:.1f}%</div>
         <div class="ctx">{fmt(m_off)} → {fmt(m_on)} GB/s triad</div></div>
       <div class="tile"><div class="lab">Worst decode tax</div>
