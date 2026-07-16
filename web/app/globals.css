@@ -69,6 +69,24 @@ a:hover {
   background: color-mix(in srgb, var(--measure) 30%, transparent);
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .eyebrow {
   font-family: var(--mono);
   font-size: 10px;
