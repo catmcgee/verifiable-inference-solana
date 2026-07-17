@@ -1,106 +1,181 @@
-# AUDIT — verified-inference (independent audit, 2026-07-16)
+# Independent Audit: verified-inference
 
-> **POST-FIX STATUS (2026-07-16, after "fix the things in audit.md").** Category A
-> was applied by the auditor. Category **B1, B2, B3 are now FIXED** — see
-> `FIXES.md` "Category B — RESOLUTIONS": the report draws A/B from the matched
-> cell (no fabricated numbers; honest ~2% decode tax, 26% STREAM), the on-chain
-> grade enum is `NoTee` (no mock; demo re-registered honestly), and
-> `vinfer verify runs/demo-receipt.json` is green (SNP row SKIPPED). B4/B5 remain
-> gated on paid calls / B200s / an idle box. The findings below are the ORIGINAL
-> snapshot and are kept verbatim for the record.
+Audit date: 2026-07-17. The user's audit brief is the authoritative specification.
+Repository plans, READMEs, prior audit claims, and prior-agent conversation notes
+were treated only as evidence.
 
-Auditor pass over the repo at HEAD `3d83357`. Evidence = file:line, live command
-output, on-chain reads, commit hashes. SPEC (parent brief) is authoritative;
-where README/PLAN/recon disagree with the box or with each other, that is a
-finding. Mock removal is a DOCUMENTED, INTENTIONAL deviation (parent order
-"real only") — not a defect; noted, not re-added.
+## Executive Summary
 
-## Executive summary
+This is a real SNP/devnet prototype, not a specification-complete verified
+inference service.
 
-Counts across 34 checklist items: **PASS 20 · PARTIAL 6 · WRONG 3 · MISSING 3 · UNVERIFIABLE 2.**
+Bluntest findings first:
 
-Bluntest first — what is OVERCLAIMED:
+1. **The browser does not verify attestation.** It fetches and renders a
+   server-provided grade and hashes. The public UI now says "not performed in
+   browser", but the required pass/fail verifier is missing. Receipt links also
+   fall back to the registry program, not the receipt transaction.
+2. **The flagship/report thesis is missing.** GLM-5.2 has ten baseline samples
+   at one small shape, is unavailable in the live SNP guest, is absent from the
+   report model order, and has no SNP, MoE-vs-dense, or Z.ai-price comparison.
+3. **The paid surface is not conformant x402/pay.sh.** The live challenge calls
+   itself `experimental` / `vinfer-session-v1`; it refunds unused authorization,
+   while the specification requires settled-upfront, no-refund charging. Paid
+   responses carry a signed receipt, but on-chain posting is a separate step.
+4. **The required experiment matrix was not run.** Current useful data covers
+   four local models, prompts 128/1024, output 128, guest threads 16/32, and a
+   narrow HPKE slice. Prompt 8192, output 1024, guest threads 64/128, full HPKE,
+   GLM-in-SNP, memory latency, and all leg-D rungs are absent.
+5. **Leg D is not implemented.** `verify_inference_proof` stores a commitment
+   and always sets `verified=false`; it performs no Groth16/alt_bn128 verification.
+6. **Private Tachyon internals were committed to public history.** HEAD is
+   redacted, and no source code was vendored, but the old blobs remain in Git
+   history. Rewriting history is intentionally left to the owner.
+7. **The strong part is real.** `vinfer verify runs/snp-receipt.json` passed the
+   SNP report, AMD VCEK->ASK->ARK chain, v2 binding, registry PDA, receipt
+   signature, and exact on-chain receipt record with no skips.
+8. **Encryption is real but scoped.** CLI/harness clients verify SNP and the
+   signed HPKE key before encrypting. `/v1/infer_sealed` protects input only;
+   `/v1/chat_e2e` seals both directions. The mutable guest root still prevents
+   the attestation from independently proving the Python code or weights run.
+9. **TLS is live and AWS is not used.** Caddy is the TLS reverse proxy on the
+   Sunburst host; HTTP redirects to HTTPS and upstream listeners are loopback.
+   No AWS SDK, service, credential, deployment, or account use was found.
+10. **No secret was found.** Gitleaks over full Git history returned zero
+    findings, corroborated by a path-only manual history scan.
 
-1. **Report labels the measured TEE as "SEV-SNP" — it is SEV-ES.** Every leg-B
-   record is `sev_mode=es` (grade launch-only; SNP guest never booted). Yet
-   `report/generate.py` hardcodes "SEV-SNP" in 5 places (lines 376, 383, 409,
-   524, 685); rendered `report/out/report-real.html` shows "SEV-SNP" 11×. The
-   report's own honest-limits section (line 561) and `web/public/measurements.json`
-   both correctly say SEV-ES. Self-contradiction; the charts overclaim. → FIXED (A).
+## Execution Evidence
 
-2. **Report numbers are FABRICATED against the real data.** The curated leg-B
-   set (`runs/*.jsonl`, 30 rows) was measured at `threads=32, prompt_tokens=16`
-   only; the leg-A sweep is `threads∈{16,32,64,128}, prompt∈{128,1024,8192}`.
-   They share NO cell. So the generator's A/B math divides by an empty leg-B
-   median and emits: tax-curve = **100.0% at every point**, leg-B throughput =
-   **0 tok/s**, break-even = **×0.00**, STREAM tile = **−27.2%** (it pools
-   bare-metal 128t 357.1 with plain-VM 32t 346.19 as "off"). The real,
-   repo-known finding (~2% flat SEV-ES inference tax) is ABSENT from the HTML.
-   Verified by re-render. → Category B (needs re-point to `legAB-inference.jsonl`
-   or a real leg-B sweep; do not ship the current render).
+| Command/check | Result |
+|---|---|
+| `make test` | PASS: 12 Python tests; standalone x402 session suite PASS |
+| Request/session schema validation | PASS: 2,772 request records + 8 session records across raw artifacts, 0 errors |
+| `cargo test --manifest-path solana/programs/verified_inference/Cargo.toml` | PASS: 2/2 |
+| `anchor test --provider.cluster localnet --validator legacy` | PASS after fixture fix: 14/14; receipt 12,080 CU; batch 11,895 CU; proof stub 8,961 CU |
+| `npm run lint` | PASS after noninteractive lint fix |
+| normal and static `npm run build` | PASS; static console deployed and exact chunk checked |
+| `npm audit --audit-level=moderate` | PASS: 0 vulnerabilities |
+| real report render | PASS: 952 retained requests, 4 sessions, 41,350-byte HTML |
+| sparse synthetic report render | PASS after empty-chart fix; previously crashed at prompt 128 |
+| `vinfer verify runs/snp-receipt.json` | PASS: full chain, exact receipt index 0, no skips |
+| Gitleaks full-history scan | PASS: 0 findings |
+| pay PAY.md validation | Frontmatter PASS; live probe indeterminate for paid POST |
+| runtime-YAML -> `pay skills provider sync` -> validator | FAIL: generated provider lacks endpoint `description`; source YAML is stale |
+| SSH read-only host/guest audit | PASS: host 6.17, SEV/ES/SNP enabled; guest `/dev/sev-guest`; no heavy commands |
+| TLS checks | PASS: HTTP 308 to HTTPS; only 80/443 public; API/CVM forwards on loopback |
 
-3. **On-chain attestation grade decode is inverted → mock reads back as "snp".**
-   `cli/devnet.py:71` maps `{0:"none",1:"launch-only",2:"snp"}`, but the Anchor
-   enum order is `Snp=0, LaunchOnly=1, Mock=2` (`state.rs:7-14`). The devnet demo
-   registered `{ mock: {} }` (`scripts/devnet-demo.ts:146`). LIVE PROOF:
-   `vinfer verify runs/_scratch/devnet-receipt.json` prints
-   `registry PDA … grade=snp` for a MOCK record. → FIXED (A).
+## Evidence Table
 
-## Box reality (read-only, `ssh sunburst`, load 0.13, 2 users, no heavy run)
+### Machine, Recon, and Trust Legs
 
-kernel `6.17.0-40-generic`; flags `sev sev_es sev_snp`; `/dev/sev` present;
-`/dev/sev-guest` absent (host, not guest); `kvm_amd/parameters/sev_snp=Y`.
-So SEV+SEV-ES+SNP are enabled at the HOST; SNP *guest* boot is what's blocked
-(README: guest_memfd/APIC gap). This makes `recon/findings.md` stale/WRONG.
+| Item | Status | Evidence |
+|---|---|---|
+| SSH key path-only rule | PASS | `.gitignore:9`; `infra/ssh_config:1-18`; history scan found no key blob. The private key was never opened by this audit. |
+| Bare-metal role and launch control | PASS | Live SSH: EPYC 9555P, 128 CPUs, `/dev/kvm` + `/dev/sev`; host lacks `/dev/sev-guest`; one QEMU guest. |
+| SEV/ES/SNP distinction | PASS | Live host flags `sev sev_es sev_snp`; KVM parameters all `Y`; guest has `/dev/sev-guest`. `recon/findings.md:7-20` records the current state. |
+| Recon raw evidence currentness | PARTIAL | `recon/raw/` is the initial pre-enable run and says `/dev/sev` absent. Current reality is a prose banner plus run artifacts, not a fresh raw recon bundle. |
+| Host/guest decision row | PASS | `recon/findings.md:11-17` records Row 1 host-control and a booted SNP guest. |
+| NUMA topology | PASS | Live + `recon/raw/12_numa.txt`: NPS1, one node, CPUs 0-127, about 1.15 TB RAM. |
+| STREAM SEV off/on | PARTIAL | `runs/all-sessions.jsonl` has off 346.19 and ES 256.10 GB/s; SNP 376.91 is a different run/day. Bare-metal 357.1 is separate. No current matched off/SNP pair. |
+| Memory-latency anchor | MISSING | No memory-latency benchmark artifact or report section. |
+| Leg A baseline | PARTIAL | Real llama/BitNet measurements exist, but not the required full grid. |
+| Leg B SNP inference | PARTIAL | Real VMPL0 report, KDS verification, four-model inference, and reduced twin matrix exist. GLM and the full matrix do not; mutable userspace is not measured. |
+| Leg C direct/proxied Claude | PARTIAL | `runs/legC-full.jsonl` has 64 direct + 64 proxied rows, one Claude model. Grid is only prompts 128/1024, caps 128/512, n=8. |
+| Leg D ladder | MISSING | No D records. `solana/.../verify_inference_proof.rs:7-12,46-54` explicitly says no verification. |
 
-## Evidence table
+### Models, API, Attestation, Pricing, and pay.sh
 
-| # | Checklist item | Status | Evidence |
-|---|---|---|---|
-| 1 | Recon gate findings.md real + decision row | WRONG | `recon/findings.md:9` "SEV disabled in BIOS", `:26-34` kernel 6.8 "SNP blocked on kernel" — box is kernel 6.17, `sev_snp=Y`, SEV+ES live. STREAM SEV-on absent from findings.md (lives in LEDGER + `runs/legAB-stream.jsonl`). → FIXED (A) |
-| 2 | Honest grade if plain SEV (no overclaim) | PASS(server)/WRONG(report) | server: `attest/report.py:35-45` es→launch-only, live `/v1/attestation` grade `none`. report overclaims SNP (finding #1) |
-| 3 | Leg A serving, real, measured | PASS | live infer 134 tok/s bitnet; `runs/legA-full.jsonl` 320 rows |
-| 4 | Leg B (SEV CVM, attest binds key+weights) | PARTIAL | SEV-ES only, grade launch-only, no signed runtime report; 30 rows one cell |
-| 5 | Leg C (attested proxy, Anthropic plaintext, honest) | PARTIAL | `runs/legC-probe.jsonl` 6 recorded rows (C-direct); C-proxied MISSING; honesty stated report+frontend |
-| 6 | Leg D zkML ladder | MISSING | deferred (LEDGER); `verify_inference_proof` is a documented stub (`lib.rs:72`, `state.rs:95`) |
-| 7 | Registry single source of truth | PASS | `models.yaml`; no 2nd config (grep clean); `make verify-registry` hash `49dc89aa…` == live server |
-| 8 | Runtime adapter interface | PASS | `server/runtimes/{base,llamacpp,bitnetcpp}.py` |
-| 9 | Endpoint surface fixed; /v1/infer thin alias | PASS | `main.py:197,233`; `/v1/models|attestation|receipts` free |
-| 10 | pricing.py derives prices; not hand-written | PASS | `report/pricing.py`; `pricing-config.yaml`; models.yaml comment enforces |
-| 11 | x402 upfront quote + no-refund documented | PASS | `x402/middleware.py`, `DESIGN.md`; free unless `VINFER_X402=1`; tests green |
-| 12 | pay.sh listing generated, not published pre-deploy | PASS | `payskill/generate_listing.py`; states receipt+grade (`generated/…md:4`); publish P5-gated |
-| 13 | Binding v2 REPORT_DATA=hash(pubkey‖registry_hash‖build) | PASS | `attest/report.py:56`, `attest_verify.py:37`; registry_hash sorted pairs |
-| 14 | PDA carries binding_version; v1 not reinterpreted; verify prints which | PASS | `state.rs:34`, `vinfer.py:154-165` prints v1/v2 |
-| 15 | Schema frozen v1, no silent fork | PASS | `harness/schema.json` single commit `7f73259`; migrate rule intact |
-| 16 | Per-session schema | PASS | `session_schema.json` has boot_s/model_load_s/first_attestation_s/stream_triad_gbs/kernel/mitigations |
-| 17 | Matrix breadth | PARTIAL | leg A sweep full; leg B 1 cell×3 models; hpke/conc/prompt grid for B, C-proxied, D MISSING |
-| 18 | Solana register_attestation | PASS | `instructions/register_attestation.rs`; devnet CU 10,171 |
-| 19 | post_receipt ed25519 via introspection, NOT naive | PASS | `ed25519.rs` strict: preceding ix, 1 sig, no cross-ix ref, pubkey+msg match |
-| 20 | Merkle-batched receipts | PASS | `post_receipt_batch.rs`; ~465 CU/receipt batched |
-| 21 | verify_inference_proof Groth16 via alt_bn128 | MISSING | documented stub, `verified=false` until wired |
-| 22 | On-chain = hashes only (privacy) | PASS | `state.rs` ReceiptAccount = prompt_hash/response_hash/model_hash only |
-| 23 | vinfer verify full chain runs; failure understood | PARTIAL | live: binding+sig+registry-PDA+receipt-PDA real; SNP→KDS SKIPPED (no report); full-green not achievable vs demo (dummy zero-sig receipt + ephemeral server key). Grade decode bug (#3) |
-| 24 | HPKE key in-CVM at boot, never persisted; attestation-gated | PASS | `crypto/hpke_box.py`, `session_box.py`; `attest_verify.py` refuses unless trusted; wire is ciphertext-only; `main.py:157` seals both directions |
-| 25 | Client verifies SNP binding BEFORE encrypting | PASS | `vinfer.py:53-61` verify then send |
-| 26 | Logging discipline — no plaintext prompt/response | PASS | grep: no logger/print of prompt/response/ciphertext in server/ |
-| 27 | Secrets scan full history | PASS | `git log --all -p` grep: no OPENSSH/sk-ant/BEGIN/keypair; `.env.local` untracked; deployer keypair gitignored+untracked |
-| 28 | .gitignore predates secret-shaped files | PASS | `7f73259` gitignore-before-secrets |
-| 29 | SSH key path-only, never inlined/copied | PASS | `infra/ssh_config` host/user only; IdentityFile only in comment example; PLAN/LEDGER path-only |
-| 30 | Leg C honesty (Anthropic sees plaintext, not verified) | PASS | report `section_leg_c` + `web/lib/labels.ts:65` |
-| 31 | Tachyon containment (no vendor/mirror/quote) | PASS | `.gitignore:29-31`; `zk/TACHYON-NOTES.md` reference only |
-| 32 | TLS external only | UNVERIFIABLE | deploy-gated (no public host yet); stated intent |
-| 33 | CLI vinfer infer/attest/verify/bench/receipts/pay | PASS | all exercised; live infer+verify green (honest skips) |
-| 34 | Web deadpan, grade+scope honest, leg D labeled deferred | PASS | `MeasurementPanel.tsx`, `labels.ts` (hashes only, no plaintext, D disabled) |
+| Item | Status | Evidence |
+|---|---|---|
+| Five required registry models | PASS | `models.yaml:7-72` contains BitNet, 8B Q4/Q8, 70B Q4, and GLM-5.2 with paths, hashes, contexts, legs, and prices. |
+| GLM-5.2 first-class measurement/report | WRONG | Only `runs/glm-bench.jsonl` (10 baseline rows, prompt 16). Live status is `runtime-unavailable`; `report/generate.py:23` omits GLM. No required comparisons. |
+| Z.ai API prohibition | PASS | Search found reference text only; no Z.ai endpoint/client call. GLM weights came from open weights. |
+| `models.yaml` single source | WRONG | `infra/run-servers.sh:24-29` duplicates every model path, runtime, port, and GLM flag. |
+| Runtime interface names | WRONG | `server/runtimes/base.py:9-26` defines `generate/chat/chat_stream`, not required `load/tokenize/stream_generate`. |
+| OpenAI-compatible endpoint | PASS | Live `POST /v1/chat/completions`; free models/attestation/receipt GETs. |
+| `/v1/infer` thin alias | PARTIAL | `server/main.py:386-404` is a separate raw-prompt generation/payment path, not a call-through to chat completions. Endpoint-shape changes are Category B. |
+| Pricing derivation | PARTIAL | `report/pricing.py` reads throughput and documented constants, then writes prices. Receipt amortization assumes 128 output tokens/request; this is not data-driven per request distribution. |
+| Quote formula | PASS | `server/x402/middleware.py:45-53`; live bitnet challenge quoted 124 micro-USDC for the test prompt + max output. |
+| Upfront, no-refund settlement | WRONG | `middleware.py:200-220` and `session.py:190-200` explicitly refund the unused quote. |
+| x402 interoperability | WRONG | Live challenge: `paymentProtocol=experimental`, `scheme=vinfer-session-v1`, devnet. `server/x402/DESIGN.md` states it is non-interoperable. |
+| pay.sh generation pipeline | WRONG | Generator emits PAY.md/OpenAPI only. Stale `payskill/generated/pay-server.yaml` points to `cat-verif.example`; sync output fails validator for missing endpoint descriptions. |
+| Listing response guarantee | WRONG | Live 402 note says on-chain posting is separate. The response does not include attestation grade, and the listing cannot promise an on-chain receipt ID per paid response. |
+| Binding v2 formula | PASS | `server/main.py:130-135`; full receipt verification proved pubkey + active registry hash + build hash binding. |
+| Registry hash exact definition | PARTIAL | `make verify-registry` hashes all five models (`49dc89...`); live attestation hashes only four healthy runtimes (`e8c61b...`). Honest operationally, but not the specified single registry hash. |
+| PDA binding version / v1 compatibility | PASS | Account carries both version/hash; CLI prints v1/v2 and handles both (`cli/vinfer.py:185-201`). |
+| Add-a-model flow | WRONG | Bench uses n=8 (`harness/pricing_bench.py:23-30`), launch script needs manual edits, no reload/re-attest/PDA automation, and payskill target does not sync/validate. No tiny backend exists, so end-to-end validation could not run honestly. |
 
-UNVERIFIABLE: (32) TLS — no public deploy; and full SNP attestation path — no
-SNP guest exists yet (both are honest gaps, not defects).
+### Measurement Schema and Matrix
 
-## Intentional deviation (documented per parent order)
+| Item | Status | Evidence |
+|---|---|---|
+| Frozen request schema fields/enums | PASS | `harness/schema.json:7-41` matches the required fields and enums. |
+| Frozen session schema | PASS | `harness/session_schema.json:7-20` has all required session measurements. |
+| No schema fork in Git history | PASS | Request schema was added once in `7f73259` and has no later committed fork. |
+| Existing JSONL schema validity | PASS | Structured validation: 2,772 request + 8 session rows, zero errors. |
+| Measurement semantic completeness | PARTIAL | 1,000/1,198 curated requests have empty `quant`; all 1,198 have zero receipt-post/CU fields because inference and chain posting were not integrated. |
+| Resumability | PARTIAL | `harness/runner.py:35-49,125-156` skips deterministic run IDs by scanning output; no required completed-cell manifest exists. |
+| Warmup discard | PASS | `report/generate.py:75-107` drops first two per reconstructed cell while retaining raw rows. |
+| Pinned threads / fixed NUMA | PARTIAL | NUMA labels and thread counts are recorded, but runtime launch uses `-t`; no complete CPU-affinity evidence exists for every run. |
+| Legs A/B full Cartesian grid | WRONG | Missing GLM-SNP, prompt 8192, output 1024, guest 64/128 threads, most HPKE cells; current reduced cells mostly n=10. |
+| Leg C required grid | WRONG | Prompts 8192 and output cap 1024 absent; n=8, not n>=10. |
+| Leg D n=5/rung and SEV comparison | MISSING | No D rows. |
 
-"Remove ALL mock — real only." `server/mock_backend.py`, synthetic fixtures,
-`gen_synthetic.py`, mock matrix DELETED (commit `3d83357`); backend hardwired
-real (`main.py:30`). Pass-2 harness/report/verify tested against the REAL server
-(`127.0.0.1:8477`) and real `runs/*.jsonl`, NOT re-added mock. Residue of the
-deviation, NOT re-fixed by re-adding mock: on-chain enum `AttestationGrade::Mock`
-still exists in the DEPLOYED program (`state.rs:13`) and the devnet demo used it
-— see FIXES.md Category B (deployed-schema change).
+### Solana and Verification
+
+| Item | Status | Evidence |
+|---|---|---|
+| `register_attestation` fields | PASS | `state.rs:23-51`; account contains key, measurement, report/registry hashes, runtime, grade, version, slot, counters. |
+| Honest grade | PASS | Current live/report/PDA are SNP; legacy ES remains launch-only. |
+| Receipt hashes only | PASS | `state.rs:54-73`; prompt/response/model hashes, key, timestamp/index/slot only. |
+| Native ed25519 verification | PASS | `ed25519.rs:35-110` requires the immediately preceding native program instruction, one signature, self-contained offsets, exact key and message. |
+| Merkle batch | PASS | Batch account/instruction and 14/14 localnet tests; 32 receipts measured at 11,895 program CU. |
+| Groth16 alt_bn128 verification | MISSING | Stub records hashes and `verified=false`; no Groth16 dependency or syscall. |
+| Mainnet economics projection | MISSING | No base/p50/p90 priority-fee, rent, single/batch, $/receipt, and $/1M complete projection. |
+| `vinfer verify` full chain | PASS | Recorded SNP receipt passed KDS chain, policy, key binding, PDA, registry, signature, and exact receipt contents/index 0. |
+| Live boot on-chain receipt continuity | PARTIAL | Current public boot advertises the attestation but has no per-response on-chain receipt integration; recorded proof comes from a previous registered boot. |
+
+### Encryption, Privacy, Secrets, and TLS
+
+| Item | Status | Evidence |
+|---|---|---|
+| HPKE private-key lifecycle | PASS | `server/main.py:92-100`; `hpke_box.py` uses generated in-memory X25519 key; no persistence/log call. |
+| Attestation before encryption | PASS | `cli/vinfer.py:53-65,85-96` and `harness/runner.py:56-75` verify, fail closed, then seal. |
+| Signed HPKE binding | PASS | `cli/attest_verify.py:94-114`; domain-separated signature by the SNP-bound Ed25519 key. |
+| Input-only vs bidirectional truth | PASS after fix | `/v1/infer_sealed` returns plaintext inside TLS; `/v1/chat_e2e` seals output/metrics. Report now says exactly that (`999bd30`). |
+| On-chain plaintext/user identifiers | PASS | Anchor state and receipt construction use hashes only. No prompt, response, or user ID field. |
+| Application/model logging | PASS | Source and guest log scan found no prompt/message/content markers or key markers. Harness JSONL has schema-only metrics. |
+| Edge access logging | PARTIAL | Caddy logs had remote IP/User-Agent but no bodies/authorization. `eb77370` disabled new access logs and was deployed; old files remain because box deletion was forbidden. |
+| Full-history secret hygiene | PASS | Gitleaks 8.30.1: exit 0, 0 findings. Manual history grep found only variable/path references. `.gitignore` predates secret files. |
+| Anthropic secret source | PASS | Proxy reads `ANTHROPIC_API_KEY` from env; no tracked value. |
+| Leg C privacy honesty | PASS | Proxy only targets Anthropic; report/UI state Anthropic sees plaintext and inference is not verified. |
+| Tachyon code containment | PASS | No vendored source object in Git history. |
+| Tachyon information containment | PARTIAL | HEAD was redacted in `62f2031`; prior detailed notes remain in Git history and require owner-approved rewrite. |
+| External TLS | PASS | Caddy automatic TLS/HSTS; HTTP returns 308; upstream API and guest forwarding bind loopback. |
+| AWS use | PASS | None found. Caddy is a self-hosted web/TLS reverse proxy on Sunburst, not an AWS service. |
+
+### Deliverables
+
+| Item | Status | Evidence |
+|---|---|---|
+| CLI infer/attest/verify/bench/receipts | PASS | Commands exist; full verify executed. Paid inference requires the experimental credential flow. |
+| Web streaming chat and metrics | PASS | Production/static builds pass; model/leg picker, streamed text, TTFT/tok/s/cost/grade/receipt panels exist. |
+| Web verified pass/fail + tx link | MISSING | Browser performs no KDS/PDA verification; receipt fallback links to registry program, not receipt tx. UI now labels the gap (`ba2447f`). |
+| Web zkML scope honesty | PASS after fix | Public chunk says verifier is a stub, no measurements, integrity not input privacy. |
+| Report required analyses | WRONG | Missing GLM/Z.ai, MoE-vs-dense, full mainnet economics, measured zkML ladder, Groth16-vs-hash, and numeric GPU projection based only on sourced assumptions. |
+| Report provenance links | WRONG | Footers provide count + min/max run ID, not links or the complete run IDs behind each chart (`report/generate.py:110-118`). |
+| Report attestation costs | PARTIAL | Aggregates many zero fields as observations; this can hide the measured HPKE refresh cost and chain-post absence. |
+| LEDGER substance | PARTIAL | Contains real command/results/decisions, but also stale contradictions and previous private-upstream detail in history. Not pure theater, not a reliable current-state source. |
+| Mock-server harness pipeline | MISSING | Previous agent deleted the mock; Pass 2 could not run the required pipeline. Unit isolation tests and live server checks passed, but that is not the requested mock pipeline. |
+| Tiny add-model validation | MISSING | No tiny runtime/fixture or automated end-to-end flow; running against the live service would only fail unknown-model validation and perturb artifacts. |
+
+## Residual Risk
+
+- The SNP report proves a launch measurement and binds an ephemeral key to
+  guest-declared digests. It does not currently measure the mutable root,
+  Python source, runtime binaries, or every model shard.
+- Receipt hashes are commitments, not confidentiality against guessed prompts.
+- Current report economics combine historical ES cells and reduced SNP cells;
+  they are not the complete authoritative experiment.
+- Historical Git blobs still contain private-upstream analysis and require an
+  explicit history-rewrite decision before public publication.
