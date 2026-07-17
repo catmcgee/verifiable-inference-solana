@@ -20,6 +20,8 @@ Generated/deployed follow-through:
 - Built static web output with the production API URL and overlaid it on
   `/srv/vinfer-web`; no service/guest restart.
 - Reloaded Caddy after validation. Existing access-log files were not deleted.
+- Tightened ignored `.env.local` from mode 0644 to 0600. This local-only mode
+  change cannot be represented by a repository commit.
 
 ## Category B: Flag Only
 

@@ -41,8 +41,11 @@ Bluntest findings first:
 9. **TLS is live and AWS is not used.** Caddy is the TLS reverse proxy on the
    Sunburst host; HTTP redirects to HTTPS and upstream listeners are loopback.
    No AWS SDK, service, credential, deployment, or account use was found.
-10. **No secret was found.** Gitleaks over full Git history returned zero
-    findings, corroborated by a path-only manual history scan.
+10. **No repository secret leak was found.** Gitleaks over full Git history
+    returned zero findings. A full directory scan found the expected ignored
+    `.env.local` Anthropic credential plus six generated `.next/` cache false
+    positives; neither is tracked. The local env file was tightened from mode
+    0644 to 0600 during the audit without reading or printing its value.
 
 ## Execution Evidence
 
@@ -146,8 +149,9 @@ Bluntest findings first:
 | On-chain plaintext/user identifiers | PASS | Anchor state and receipt construction use hashes only. No prompt, response, or user ID field. |
 | Application/model logging | PASS | Source and guest log scan found no prompt/message/content markers or key markers. Harness JSONL has schema-only metrics. |
 | Edge access logging | PARTIAL | Caddy logs had remote IP/User-Agent but no bodies/authorization. `eb77370` disabled new access logs and was deployed; old files remain because box deletion was forbidden. |
-| Full-history secret hygiene | PASS | Gitleaks 8.30.1: exit 0, 0 findings. Manual history grep found only variable/path references. `.gitignore` predates secret files. |
-| Anthropic secret source | PASS | Proxy reads `ANTHROPIC_API_KEY` from env; no tracked value. |
+| Full-history secret hygiene | PASS | Gitleaks 8.30.1: full Git history exit 0, 0 findings. Manual history grep found only variable/path references. `.gitignore` predates secret files. |
+| Ignored/generated worktree scan | PASS after fix | Full directory scan found one real credential only in ignored `.env.local` and six generic-key false positives only in ignored `.next/` build output. Neither is tracked; `.env.local` was changed from mode 0644 to 0600 without exposing its value. |
+| Anthropic secret source | PASS | Proxy reads `ANTHROPIC_API_KEY` from the ignored environment file; no tracked value. |
 | Leg C privacy honesty | PASS | Proxy only targets Anthropic; report/UI state Anthropic sees plaintext and inference is not verified. |
 | Tachyon code containment | PASS | No vendored source object in Git history. |
 | Tachyon information containment | PARTIAL | HEAD was redacted in `62f2031`; prior detailed notes remain in Git history and require owner-approved rewrite. |
