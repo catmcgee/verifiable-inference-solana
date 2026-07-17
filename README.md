@@ -58,8 +58,8 @@ On the box, start the stack with `infra/run-servers.sh` then the vinfer server
 `server/` (registry, runtimes, attest, crypto, receipts, x402) · `harness/`
 (matrix runner, frozen `schema.json`) · `infra/` (SSH provisioning, QEMU/CVM
 launch, sweep + measure scripts) · `solana/` (Anchor program + devnet notes) ·
-`cli/` (`vinfer`) · `report/` (generator + pricing) · `zk/` (leg-D notes;
-tachyon deferred to B200s) · `web/` (Next.js UI) · `payskill/` (generated).
+`cli/` (`vinfer`) · `report/` (generator + pricing) · `zk/` (private-source
+boundary; leg D is unmeasured) · `web/` (Next.js UI) · `payskill/` (generated).
 
 ## Rules that never bend
 
