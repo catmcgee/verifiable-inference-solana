@@ -1,0 +1,36 @@
+verified-inference.213.239.141.40.sslip.io {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8478 {
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}
+
+console.213.239.141.40.sslip.io {
+	encode zstd gzip
+
+	handle_path /vinfer/* {
+		reverse_proxy 127.0.0.1:8478 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /srv/vinfer-web
+		try_files {path} {path}.html {path}/index.html
+		file_server
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}
