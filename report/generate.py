@@ -414,6 +414,13 @@ def section_tps_ab(records):
     slice_ = sel(records, leg=("A", "B"), **AB_CELL)
     matched = ab_matched(records)
     models = [m for m in MODEL_ORDER if m in matched]
+    if not models:
+        return (
+            "<p class='placeholder'>No matched A/B throughput cell is present. "
+            "The report cannot draw this chart without both legs at the same "
+            f"model and shape.</p>{provenance(slice_)}",
+            {},
+        )
     a_vals = [matched[m][0] for m in models]
     b_vals = [matched[m][1] for m in models]
     rows = []
@@ -546,6 +553,14 @@ def section_leg_c(records):
 
 def section_leg_d(records):
     d = sel(records, leg="D")
+    if not d:
+        return (
+            '<p class="placeholder">Leg D has no measurement rows. None of the '
+            'required matmul-to-token ladder has run, and the on-chain proof '
+            'instruction is an explicitly unverified stub. Leg D would prove '
+            'integrity for a public model and hashed input, not input privacy. '
+            f'No proving-time or Groth16 claim is made.</p>{provenance(d)}'
+        )
     rung_models = sorted({r["model"] for r in d})
     rows = []
     for m in rung_models:
@@ -611,17 +626,20 @@ def section_limits():
     return """
     <p>What is and isn't protected, stated plainly. "Encrypted" is layered.</p>
     <ul>
-      <li><strong>Memory is encrypted (SEV-ES), attestation is not yet:</strong>
-      guest RAM + register state are encrypted with a per-VM key, so the operator
-      can't read weights/prompt/KV-cache from memory. But we run SEV-<em>ES</em>,
-      not SNP — there is <em>no signed runtime report</em>, so a remote party
-      can't verify the enclave is genuine (grade <code>launch-only</code>). SNP
-      closes this; it's the linchpin, and its guest boot is in progress.</li>
-      <li><strong>Input can be end-to-end private; output too (opt-in):</strong>
-      HPKE seals the prompt to the enclave key; the attestation-gated
-      <code>/v1/chat_e2e</code> session seals prompt <em>and</em> response under a
-      key the operator never holds. Default TLS mode decrypts at the terminator —
-      the sealed path is what closes that.</li>
+      <li><strong>SNP is live, but the measured software chain is incomplete:</strong>
+      the live guest returns a VMPL0 report whose signature verifies through the
+      AMD VCEK→ASK→ARK chain and whose launch measurement is policy-allowlisted.
+      Report data binds the ephemeral signing key plus guest-declared registry
+      and build digests. The root disk is mutable and the build digest is a
+      release identifier, not a measurement of every Python module and weight
+      byte, so this does not independently prove which model implementation ran.
+      A measured immutable root/code manifest is required to close that gap.</li>
+      <li><strong>The input-sealed path removes prompt plaintext from the TLS proxy:</strong>
+      HPKE on <code>/v1/infer_sealed</code> seals only the prompt to the SNP-bound
+      key; its response is plaintext inside the outer TLS connection. Use
+      <code>/v1/chat_e2e</code> for a response sealed back to the verified client.
+      Neither mode defends against an operator who replaces the mutable guest
+      application with one that logs plaintext.</li>
       <li><strong>Metadata leaks:</strong> request timing, sizes, model choice,
       token counts, and cost are visible to the operator/network even when the
       payload is sealed. Traffic analysis is not addressed.</li>
@@ -631,15 +649,14 @@ def section_limits():
       <li><strong>On-chain is hashes, not content:</strong> only sha256(prompt),
       sha256(response), model hash go to Solana — a commitment, not the text
       (an adversary who guesses the text can confirm it).</li>
-      <li><strong>Trust root is AMD:</strong> the ASP/PSP, the memory AES engine,
-      and (for SNP) the VCEK→ASK→ARK signing chain. "Trust AMD silicon instead of
-      the operator," not "trust nobody." SEV-ES side channels (ciphertext,
-      single-step) and the lack of memory-integrity (that's SNP's RMP) are not
-      mitigated.</li>
-      <li><strong>When the GPU arrives:</strong> these CPU numbers vs published
-      H100-CC (&lt;5–7%, PCIe-bound) and Blackwell TEE-I/O (near-zero) —
-      projection only, clearly labeled; and tachyon zkML (integrity, not privacy)
-      resumes on the 8×B200s.</li>
+      <li><strong>Trust roots include AMD and the measured guest supply chain:</strong>
+      AMD's ASP/PSP, memory-encryption engine, RMP, and VCEK→ASK→ARK chain are
+      hardware roots. The verifier also relies on the launch-measurement policy,
+      firmware, guest image construction, and currently the operator-controlled
+      mutable disk. SNP does not address all side channels or traffic analysis.</li>
+      <li><strong>When a GPU arrives:</strong> re-run the same matrix and report
+      measured results separately. This report makes no GPU overhead or zkML
+      throughput projection without data.</li>
     </ul>
     """
 
