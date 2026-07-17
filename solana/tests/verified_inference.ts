@@ -162,7 +162,7 @@ describe("verified_inference", () => {
         reportDataHash: Array.from(reportDataHash),
         modelWeightsHash: Array.from(modelHash),
         runtimeVersion: "bitnet.cpp@p0-scaffold",
-        attestationGrade: { mock: {} },
+        attestationGrade: { noTee: {} },
         bindingVersion: 2,
         registryHash: Array.from(registryHash),
       })
@@ -213,7 +213,7 @@ describe("verified_inference", () => {
         reportDataHash: Array.from(reportDataHash),
         modelWeightsHash: Array.from(modelHash),
         runtimeVersion: "bitnet.cpp@p0-scaffold",
-        attestationGrade: { mock: {} },
+        attestationGrade: { noTee: {} },
         bindingVersion: 2,
         registryHash: Array.from(registryHash),
       })
@@ -227,7 +227,7 @@ describe("verified_inference", () => {
     expect(Buffer.from(att.reportDataHash)).to.deep.equal(reportDataHash);
     expect(Buffer.from(att.modelWeightsHash)).to.deep.equal(modelHash);
     expect(att.runtimeVersion).to.equal("bitnet.cpp@p0-scaffold");
-    expect(att.attestationGrade).to.deep.equal({ mock: {} });
+    expect(att.attestationGrade).to.deep.equal({ noTee: {} });
     expect(att.bindingVersion).to.equal(2);
     expect(Buffer.from(att.registryHash)).to.deep.equal(registryHash);
     expect(att.slot.toNumber()).to.be.greaterThan(0);
@@ -253,7 +253,7 @@ describe("verified_inference", () => {
         reportDataHash: Array.from(v1ReportDataHash),
         modelWeightsHash: Array.from(modelHash),
         runtimeVersion: "bitnet.cpp@p0-scaffold-v1",
-        attestationGrade: { mock: {} },
+        attestationGrade: { noTee: {} },
         bindingVersion: 1,
         registryHash: Array.from(zeroRegistryHash),
       })
@@ -277,7 +277,7 @@ describe("verified_inference", () => {
           reportDataHash: Array.from(reportDataHash),
           modelWeightsHash: Array.from(modelHash),
           runtimeVersion: "bitnet.cpp@p0-scaffold",
-          attestationGrade: { mock: {} },
+          attestationGrade: { noTee: {} },
           bindingVersion: 3,
           registryHash: Array.from(registryHash),
         })
