@@ -137,6 +137,8 @@ function Attestation({
             {gradeLabel(att.grade) ?? DASH}
           </div>
           <dl className="kv">
+            <dt>verification</dt>
+            <dd className="na">not performed in browser</dd>
             <dt>grade</dt>
             <dd className={att.grade ? "" : "na"}>{att.grade ?? DASH}</dd>
             <dt>sev_mode</dt>

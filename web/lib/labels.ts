@@ -37,7 +37,7 @@ export function sevLabel(mode: string | null | undefined): SevLabel | null {
 export const GRADE_LABELS: Record<string, string> = {
   none: "no TEE — memory plaintext",
   "launch-only": "SEV memory-encrypted, no runtime report",
-  snp: "SEV-SNP, signed runtime report",
+  snp: "SEV-SNP reported by server",
 };
 
 export function gradeLabel(grade: string | null | undefined): string | null {
@@ -67,7 +67,7 @@ export const LEGS: Leg[] = [
   {
     id: "D",
     disabled: true,
-    desc: "ZK proof of inference — deferred until 8×B200 hardware; see report.",
+    desc: "not measured; the on-chain verifier is still a stub. Integrity, not input privacy.",
   },
 ];
 
