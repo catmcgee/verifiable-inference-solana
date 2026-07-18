@@ -13,11 +13,13 @@ Solana devnet, and exposes the results through an API, CLI, report, and browser.
 1. The browser verifies the AMD certificate chain, signed Secure Encrypted
    Virtualization with Secure Nested Paging (SEV-SNP) report, local policy,
    boot key, and Solana attestation record.
-2. Hybrid Public Key Encryption (HPKE) seals the chat to a key created inside
-   the verified guest. The guest encrypts generated text back to the browser.
+2. Hybrid Public Key Encryption (HPKE) seals browser chat to a key created
+   inside the verified guest. The guest encrypts generated text back to the
+   browser.
 3. Caddy handles public HTTPS and forwards the request through a loopback-only
-   host port into the confidential virtual machine. Caddy and the host see
-   routing metadata and ciphertext, not TEE chat text.
+   host port into the confidential virtual machine. On the sealed browser path,
+   Caddy and the normal host forwarding path see routing metadata and
+   ciphertext, not chat text.
 4. FastAPI and the selected `llama.cpp` or `bitnet.cpp` runtime execute inside
    the guest. SSH is used only by operators for deployment and maintenance; it
    is never part of an inference request.
@@ -32,7 +34,8 @@ and hashing candidate values.
 ## Available routes
 
 - **Open-source models inside the TEE:** end-to-end sealed browser chat,
-  independently checked attestation, and confirmed devnet receipts.
+  independently checked attestation, and confirmed devnet receipts. The live
+  mutable guest still trusts the operator not to replace its userspace.
 - **Open-source models without the TEE:** the same-box performance baseline.
   Transport Layer Security (TLS) protects transport, but the host sees text.
 - **Claude proxy:** measures attested-proxy overhead. Anthropic sees plaintext,
@@ -63,6 +66,12 @@ OpenAI-compatible `POST /v1/chat/completions`; the browser uses
 `POST /v1/chat_e2e` for bidirectional sealing. Free endpoints expose models,
 attestation, and receipts.
 
+The OpenAI-compatible endpoint accepts normal plaintext OpenAI messages under
+TLS; it does not inherit the browser endpoint's end-to-end sealing. The current
+x402 gateway targets that compatibility endpoint, so an edge payment gateway
+can read those messages. Clients that require the TEE privacy boundary must use
+the sealed endpoint or its CLI wrapper.
+
 Browser testing uses an authenticated session without payment. The generated
 pay/x402 gateway sits in front of the same OpenAI-compatible API; its sandbox
 flow passes, but no mainnet gateway or provider listing is published.
@@ -77,6 +86,7 @@ uv run vinfer attest
 uv run vinfer infer --model bitnet-2b --prompt 'hello' --e2e
 uv run vinfer verify runs/snp-receipt.json
 make test
+make check
 make verify-registry
 make report
 make pay-sandbox-test

@@ -21,7 +21,7 @@ interface VerificationCheck {
 }
 
 export interface BrowserVerification {
-  status: "verified" | "failed" | "incomplete";
+  status: "verified" | "failed" | "incomplete" | "not-applicable";
   attestationTrusted: boolean;
   checks: VerificationCheck[];
   attestationPda?: string;
@@ -459,10 +459,20 @@ export async function verifyReceiptContent(
 export async function verifyInBrowser(
   attestation: AttestationDoc,
   receipt: Receipt | null,
+  options: { attestationRequired?: boolean } = {},
 ): Promise<BrowserVerification> {
   const checks: VerificationCheck[] = [];
   try {
     if (attestation.grade !== "snp" || !attestation.snp_report_b64) {
+      if (options.attestationRequired === false) {
+        notApplicable(
+          checks,
+          "snp-grade",
+          "SNP report",
+          "the no-TEE baseline is expected to have no hardware attestation",
+        );
+        return { status: "not-applicable", attestationTrusted: false, checks };
+      }
       check(checks, "snp-grade", "SNP report", false, "", "server did not provide an SNP-grade report");
       return { status: "failed", attestationTrusted: false, checks };
     }

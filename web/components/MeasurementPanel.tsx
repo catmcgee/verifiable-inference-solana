@@ -136,6 +136,7 @@ function Attestation({
   verificationLoading: boolean;
   onRefetch: () => void;
 }) {
+  const attestationNotApplicable = verification?.status === "not-applicable";
   const summary = att
     ? att.grade === "none"
       ? "No TEE or hardware attestation."
@@ -186,12 +187,19 @@ function Attestation({
                 : verification?.status ?? "not available"}
             </dd>
             <dt>prompt key</dt>
-            <dd className={verification?.attestationTrusted ? "verify-verified" : "verify-pending"}>
+            <dd className={attestationNotApplicable
+              ? "verify-not-applicable"
+              : verification?.attestationTrusted
+                ? "verify-verified"
+                : "verify-pending"}
+            >
               {verificationLoading
                 ? "checking"
-                : verification?.attestationTrusted
-                  ? "trusted · browser sealing on"
-                  : "not trusted"}
+                : attestationNotApplicable
+                  ? "not used"
+                  : verification?.attestationTrusted
+                    ? "trusted · browser sealing on"
+                    : "not trusted"}
             </dd>
             <dt>grade</dt>
             <dd className={att.grade ? "" : "na"}>{att.grade ?? DASH}</dd>

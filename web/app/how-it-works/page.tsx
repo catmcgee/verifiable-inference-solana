@@ -9,24 +9,13 @@ import {
   Fingerprint,
   Gauge,
   Globe2,
-  KeyRound,
   LockKeyhole,
   MonitorDot,
   Network,
-  ReceiptText,
   Server,
   SquareTerminal,
 } from "lucide-react";
 import { Masthead } from "@/components/Masthead";
-
-const requestSteps = [
-  [MonitorDot, "Check the evidence", "The browser verifies the AMD certificate chain, launch policy, registry record, and boot key before it sends a prompt."],
-  [KeyRound, "Encrypt the prompt", "Hybrid Public Key Encryption (HPKE) seals the chat to the verified key created inside the guest at boot. Transport Layer Security (TLS) protects the outer connection too."],
-  [Cpu, "Run the open model", "llama.cpp or bitnet.cpp loads the selected public weights and streams tokens inside the confidential virtual machine."],
-  [Fingerprint, "Hash and sign", "The server hashes the prompt, response, and model declaration, then signs only those hashes with its boot key."],
-  [Database, "Post the receipt", "A host relay checks the signature and posts the hash-only receipt to Solana devnet."],
-  [CheckCircle2, "Check the result", "The browser checks the receipt signature and its exact on-chain program-derived address (PDA) record."],
-] as const;
 
 const verificationSteps = [
   ["1", "AMD certificate chain", "Versioned Chip Endorsement Key (VCEK) → AMD SEV Signing Key (ASK) → AMD Root Key (ARK)."],
@@ -50,15 +39,17 @@ export default function HowItWorksPage() {
               inside a confidential virtual machine (CVM). This route uses
               AMD Secure Encrypted Virtualization with Secure Nested Paging
               (SEV-SNP). The browser verifies the guest, then encrypts the
-              prompt to its boot key. Only the browser and the TEE decrypt the
-              prompt and generated text.
+              prompt to a boot-generated HPKE key signed by the guest&apos;s boot
+              key. The live request path keeps chat text between the browser
+              and the TEE. The current mutable guest still trusts the operator
+              not to replace its software.
             </p>
           </section>
 
           <section className="tee-primary" aria-label="Primary verified inference route">
             <div className="tee-route-diagram" aria-label="Verified inference request path">
               <div
-                className="tee-stage client-stage"
+                className="tee-stage"
                 tabIndex={0}
                 aria-describedby="client-stage-help"
                 data-tooltip="The client rejects the enclave key unless the AMD certificate chain, launch policy, and registry binding all verify."
@@ -71,7 +62,7 @@ export default function HowItWorksPage() {
               </div>
               <div className="tee-arrow"><span>request</span>→</div>
               <div
-                className="tee-stage edge-stage"
+                className="tee-stage"
                 tabIndex={0}
                 aria-describedby="edge-stage-help"
                 data-tooltip="For the TEE route, the public edge forwards HPKE ciphertext and cannot decrypt the prompt or generated text. It can still see routing metadata such as the model and token limit."
@@ -84,7 +75,7 @@ export default function HowItWorksPage() {
               </div>
               <div className="tee-arrow"><span>forward</span>→</div>
               <div
-                className="tee-stage tee-stage-boundary"
+                className="tee-stage model-stage"
                 tabIndex={0}
                 aria-describedby="tee-stage-help"
                 data-tooltip="Both inference and receipt signing happen inside the same SEV-SNP guest. Measured boot is required before code and weight identity can be independently fixed."
@@ -106,33 +97,40 @@ export default function HowItWorksPage() {
                 </div>
                 <span className="sr-only" id="tee-stage-help">Both inference and receipt signing happen inside the same SEV-SNP guest. Measured boot is required before code and weight identity can be independently fixed.</span>
               </div>
-              <div className="tee-arrow"><span>hashes</span>→</div>
+              <div className="tee-arrow"><span>encrypted</span>→</div>
               <div
-                className="tee-stage chain-stage"
+                className="tee-stage"
+                tabIndex={0}
+                aria-describedby="response-stage-help"
+                data-tooltip="The generated text is encrypted inside the TEE. The public edge forwards ciphertext, and only the browser opens it with the session key."
+              >
+                <span className="stage-kicker">4 · client response</span>
+                <Activity />
+                <b>Decrypt the response</b>
+                <p>The browser opens the generated text locally.</p>
+                <span className="sr-only" id="response-stage-help">The generated text is encrypted inside the TEE. The public edge forwards ciphertext, and only the browser opens it with the session key.</span>
+              </div>
+              <div className="tee-arrow"><span>receipt</span>→</div>
+              <div
+                className="tee-stage"
                 tabIndex={0}
                 aria-describedby="chain-stage-help"
                 data-tooltip="The Solana program stores fixed-length hashes, the enclave public key, timestamp, and signature metadata. It never receives prompt text, response text, or user identity."
               >
-                <span className="stage-kicker">4 · public record</span>
+                <span className="stage-kicker">5 · public record</span>
                 <Database />
                 <b>Anchor the receipt</b>
                 <p>Solana devnet stores hashes and signature metadata only.</p>
                 <span className="sr-only" id="chain-stage-help">The Solana program stores fixed-length hashes, the enclave public key, timestamp, and signature metadata. It never receives prompt text, response text, or user identity.</span>
               </div>
-              <div className="tee-return">
-                <Activity />
+              <div className="tee-note">
+                <CheckCircle2 />
                 <div>
-                  <b>Response returns to the client</b>
-                  <span>The TEE encrypts the generated text; the browser decrypts it locally.</span>
+                  <b>What the attestation means</b>
+                  <span>SEV-SNP signs the confidential virtual machine launch. The browser requires that evidence to match local policy before it sends ciphertext.</span>
                 </div>
-                <ReceiptText />
               </div>
             </div>
-            <p className="tee-definition">
-              SEV-SNP signs a report describing the confidential virtual
-              machine launch. The console evaluates and displays that evidence;
-              the TEE console requires it to pass before sending ciphertext.
-            </p>
           </section>
 
           <section className="how-section state-section">
@@ -141,41 +139,28 @@ export default function HowItWorksPage() {
             <div className="state-grid">
               <article className="state-item live">
                 <div className="state-title"><Activity size={18} /><b>Live now</b></div>
-                <h3>Hardware-attested virtual machine</h3>
+                <h3>Proves a real TEE started</h3>
                 <p>
-                  The browser verifies the AMD-signed launch report, local
-                  policy, registry record, boot-key signature, and receipt.
-                  The current 832 gibibyte (GiB) guest still has mutable userspace, so the
-                  operator can change code or weights after launch.
+                  The browser verifies the signed launch report, policy, boot
+                  key, and receipt. The public guest can still be changed after
+                  it starts, so this does not yet prove the exact server code
+                  and model files stayed unchanged.
                 </p>
-                <span>Execution scope: guest-declared</span>
+                <span>Current scope: real TEE, files not fixed</span>
               </article>
               <article className="state-item target">
-                <div className="state-title"><Code2 size={18} /><b>Hardened target</b></div>
-                <h3>Measured code and model images</h3>
+                <div className="state-title"><Code2 size={18} /><b>Next step</b></div>
+                <h3>Prove the exact code and model</h3>
                 <p>
-                  Direct measured boot and device-mapper verity (dm-verity)
-                  make the root filesystem and model images read-only and
-                  hash-checked before the server starts. This pipeline is in
-                  isolated testing and has not replaced the public guest yet.
+                  The hardened version makes the server and model files
+                  read-only, checks their hashes before starting, and binds
+                  that identity into the attestation. It works in an isolated
+                  BitNet test guest but is not public yet. This strengthens the
+                  TEE route; it is not a zero-knowledge proof.
                 </p>
-                <span>Execution scope: pending public cutover</span>
+                <span>Status: tested with BitNet, public cutover pending</span>
               </article>
             </div>
-          </section>
-
-          <section className="how-section">
-            <div className="eyebrow">One request</div>
-            <h2>From prompt to independently checked receipt</h2>
-            <ol className="request-flow">
-              {requestSteps.map(([Icon, title, text], index) => (
-                <li key={title}>
-                  <div className="flow-index">{index + 1}</div>
-                  <div className="flow-icon"><Icon size={18} /></div>
-                  <div><b>{title}</b><p>{text}</p></div>
-                </li>
-              ))}
-            </ol>
           </section>
 
           <section className="how-section verify-focus">
@@ -188,7 +173,8 @@ export default function HowItWorksPage() {
                   The browser verifies the attested HPKE key before encrypting.
                   The prompt is decrypted only inside the TEE. The generated
                   text is encrypted inside the TEE and decrypted only in the
-                  browser.
+                  browser. This describes the sealed browser endpoint running
+                  the approved server.
                 </p>
               </div>
               <div>
@@ -205,6 +191,8 @@ export default function HowItWorksPage() {
               Prompt text, response text, user identifiers, and encryption keys
               are never written to Solana. The baseline and Claude comparison
               routes use TLS but do not provide this end-to-end privacy boundary.
+              The OpenAI-compatible endpoint also accepts plaintext messages
+              under TLS for client compatibility.
             </p>
           </section>
 
@@ -299,9 +287,11 @@ export default function HowItWorksPage() {
                   <p>
                     TLS protects the browser-to-Caddy connection. HPKE adds a
                     second layer from the browser all the way into the verified
-                    TEE, so Caddy and the Sunburst host forward ciphertext but
-                    cannot read the TEE chat. The private port limits network
-                    access; it does not provide content privacy by itself.
+                    TEE, so normal Caddy and host forwarding handles ciphertext,
+                    not chat text. The current guest administrator remains
+                    trusted because its userspace is mutable; the measured,
+                    read-only guest is the production target. The private port
+                    limits network access but does not provide content privacy.
                   </p>
                 </div>
               </article>
@@ -333,7 +323,7 @@ export default function HowItWorksPage() {
 
             <div className="deploy-notes">
               <div><b>Test access</b><span>Authenticated browser sessions reach the API without payment.</span></div>
-              <div><b>pay.sh</b><span>An x402 gateway can sit in front of the same OpenAI-compatible API. It is not published yet.</span></div>
+              <div><b>pay.sh</b><span>An x402 gateway can sit in front of the OpenAI-compatible TLS endpoint. That endpoint is not end-to-end sealed, and the listing is not published.</span></div>
             </div>
           </section>
 

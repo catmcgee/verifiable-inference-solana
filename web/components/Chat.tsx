@@ -124,7 +124,7 @@ export function MessageList({
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, pending]);
+  }, [messages, pending]);
 
   return (
     <div className="messages">

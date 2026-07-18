@@ -85,6 +85,17 @@ export default function Page() {
 
   const liveLeg: LiveLeg | null = leg === "A" || leg === "B" || leg === "C" ? leg : null;
 
+  useEffect(() => {
+    // A route change can cross a privacy boundary. Never carry conversation
+    // content or request accounting into a route with different guarantees.
+    setMessages([]);
+    setInput("");
+    setLastReceipt(null);
+    setLastMetrics(null);
+    setRegistryHash(null);
+    setTotals(EMPTY_TOTALS);
+  }, [leg]);
+
   const loadAttestation = useCallback(() => {
     if (!liveLeg) return;
     const requestId = ++attestationRequestRef.current;
@@ -115,9 +126,6 @@ export default function Page() {
     setModelsLoading(true);
     setModelsError(null);
     setAttestation(null);
-    setLastReceipt(null);
-    setLastMetrics(null);
-    setRegistryHash(null);
     getModels(liveLeg)
       .then((data) => {
         if (!cancelled) {
@@ -159,7 +167,9 @@ export default function Page() {
       return;
     }
     setVerificationLoading(true);
-    verifyInBrowser(attestation, lastReceipt)
+    verifyInBrowser(attestation, lastReceipt, {
+      attestationRequired: liveLeg !== "A",
+    })
       .then((result) => {
         if (!cancelled) setVerification(result);
       })
@@ -169,7 +179,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [attestation, lastReceipt]);
+  }, [attestation, lastReceipt, liveLeg]);
 
   async function login(accessCode: string): Promise<boolean> {
     if (!liveLeg) return false;
