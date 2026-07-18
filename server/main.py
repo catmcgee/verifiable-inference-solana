@@ -1,19 +1,19 @@
 """verified-inference server.
 
-Registry-driven (models.yaml is the single source of truth — ADDON step 1/2).
+Registry-driven (models.yaml is the single source of truth).
 Canonical surface: POST /v1/chat/completions · GET /v1/models · GET
-/v1/attestation · GET /v1/receipts/{id}. POST /v1/infer is a thin raw-prompt
-alias used by the harness. Serves real models from models.yaml (no mock).
+/v1/attestation · GET /v1/receipts/{id}. POST /v1/infer is the raw-prompt
+harness surface. Serves real models from models.yaml.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
 import time
 import uuid
-import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -28,9 +28,6 @@ from server.receipts.request_hash import canonical_request
 from server.receipts.signer import EnclaveSigner
 from server.receipts.solana import attestation_pda
 
-# REAL backend only. There is no mock — the server serves the actual models in
-# models.yaml via their runtimes, or it errors. (This is a measurement/serving
-# system; a mock would make every number and every attestation a lie.)
 BACKEND = "llama"
 REGISTRY = registry.load()
 
@@ -328,7 +325,6 @@ async def infer_sealed(req: SealedInferRequest, request: Request):
     return _completion_response(
         {"model": req.model, **result, "receipt": receipt, "settlement": settlement},
         receipt,
-        settlement,
     )
 
 
@@ -438,7 +434,6 @@ async def chat_e2e(req: SealedInferRequest, request: Request):
     return _completion_response(
         body,
         body["receipt"],
-        settlement,
     )
 
 
@@ -608,7 +603,7 @@ async def chat_completions(req: ChatRequest, request: Request):
             "settlement": settlement,
         },
     }
-    return _completion_response(resp, receipt, settlement)
+    return _completion_response(resp, receipt)
 
 
 @app.post("/v1/infer")
@@ -630,11 +625,10 @@ async def infer(req: InferRequest, request: Request):
     return _completion_response(
         {"model": req.model, **result, "receipt": receipt, "settlement": settlement},
         receipt,
-        settlement,
     )
 
 
-def _completion_response(body: dict, receipt: dict, settlement: dict) -> JSONResponse:
+def _completion_response(body: dict, receipt: dict) -> JSONResponse:
     headers = {"X-Vinfer-Receipt-Id": receipt["receipt_id"]}
     return JSONResponse(content=body, headers=headers)
 
