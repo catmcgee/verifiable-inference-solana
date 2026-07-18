@@ -214,7 +214,8 @@ export default function Page() {
   useEffect(() => {
     if (!liveLeg) return;
     if (!legModels.some((m) => m.id === modelId)) {
-      setModelId(legModels[0]?.id ?? null);
+      const preferred = legModels.find((item) => item.id === "8b-q4");
+      setModelId(preferred?.id ?? legModels[0]?.id ?? null);
     }
   }, [liveLeg, legModels, modelId]);
 
