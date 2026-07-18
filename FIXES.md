@@ -13,6 +13,12 @@ Each safe fix was committed separately.
 | `02434c5` | Removed private-upstream implementation details from public docs and corrected B200 deferral claims. | Rewritten history contains neither the removed notes nor the private URL. |
 | `46e01e4` | Replaced interactive `next lint` setup with a real noninteractive ESLint job. | `npm run lint` PASS. |
 | `de23935` | Pinned patched PostCSS 8.5.19. | `npm audit --audit-level=moderate`: 0 vulnerabilities. |
+| `6850b58` | Completed the authenticated runtime, registry-driven launch, browser E2E endpoint, and devnet receipt chain. | 47 Python tests and full live `vinfer verify` PASS. |
+| `e68eb3c` | Shipped the redesigned console, measurement browser, browser verifier, and sealed TEE chat. | Static build and deployed Playwright privacy canary PASS. |
+| `54ff143` | Pinned approved public and isolated measured-build identities. | Public and measured receipt verification PASS. |
+| `afdcecc` | Replaced stale audit history with current evidence and a concise project ledger. | Post-rewrite history/path scans PASS. |
+| `561e8d2` | Added the deployed Caddy, loopback, TEE, SSH, and Solana explanation. | Desktop/mobile visual checks and deployed hover check PASS. |
+| `09471f9` | Consolidated repeated diagram tooltip rules. | Knip clean; jscpd reports zero clones. |
 
 Generated/deployed follow-through:
 
