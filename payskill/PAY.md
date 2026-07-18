@@ -75,6 +75,6 @@ prove which Python code or model weights executed. Leg C is not exposed here.
 Leg D verification remains a stub and is not offered as a paid endpoint.
 
 Use `vinfer verify <receipt.json>` for the SNP/KDS, key-binding, registry, and
-signature checks. Exact inference-receipt PDA verification is available only
-for receipts whose `onchain_status` is `confirmed`; current paid responses say
-`not-posted`. Anthropic is not called by this route.
+signature checks. The live origin currently returns confirmed Solana devnet
+receipt PDAs. This development listing makes no mainnet receipt guarantee and
+remains unpublished. Anthropic is not called by this route.

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Verified Inference",
-    "version": "0.7.0"
+    "version": "0.8.1"
   },
   "paths": {
     "/v1/models": {
@@ -135,6 +135,8 @@
         "properties": {
           "model": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Model"
           },
           "messages": {
@@ -143,6 +145,8 @@
               "type": "object"
             },
             "type": "array",
+            "maxItems": 128,
+            "minItems": 1,
             "title": "Messages"
           },
           "max_tokens": {
@@ -182,10 +186,13 @@
         "properties": {
           "model": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Model"
           },
           "prompt": {
             "type": "string",
+            "maxLength": 524288,
             "title": "Prompt"
           },
           "max_tokens": {
@@ -207,14 +214,20 @@
         "properties": {
           "model": {
             "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
             "title": "Model"
           },
           "enc": {
             "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
             "title": "Enc"
           },
           "ciphertext": {
             "type": "string",
+            "maxLength": 900000,
+            "minLength": 1,
             "title": "Ciphertext"
           },
           "max_tokens": {
@@ -223,6 +236,11 @@
             "minimum": 1.0,
             "title": "Max Tokens",
             "default": 64
+          },
+          "stream": {
+            "type": "boolean",
+            "title": "Stream",
+            "default": false
           }
         },
         "type": "object",
