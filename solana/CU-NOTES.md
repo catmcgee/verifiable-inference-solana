@@ -2,9 +2,8 @@
 
 Localnet CU measurements from `anchor test` (the table below is rewritten by
 the test suite's `after()` hook on every green run). Devnet was subsequently
-measured: register_attestation 10,171 CU and post_receipt 13,580 CU; those
-numbers, transactions, and the local/devnet comparison are in
-`solana/DEVNET-NOTES.md` and should drive any mainnet projection.
+measured: register_attestation 10,171 CU and post_receipt 13,580 CU. Preserve
+the local/devnet distinction when producing any future mainnet projection.
 
 ## Measured CU (localnet)
 

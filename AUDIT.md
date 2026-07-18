@@ -218,7 +218,7 @@ Further remediation on 2026-07-18:
 | Report required analyses | PARTIAL after fix | GLM baseline and the missing matched SNP comparison are explicit. Full mainnet economics, measured zkML ladder, Groth16-vs-hash, and sourced GPU projections remain absent. |
 | Report provenance links | PASS after fix | Every section footer contains the complete contributing run/session IDs linked to exact browser filters (`report/generate.py`). |
 | Report attestation costs | PARTIAL after fix | Positive phase samples report median/p99/n; zero sentinels are `not recorded`, not zero cost. Per-response post/confirm/CU/fees remain unmeasured. |
-| LEDGER substance | PASS after rewrite | The replacement ledger records dated decisions, current deployments, test results, spend, and unresolved work only; stale operational history was removed. |
+| LEDGER deliverable | MISSING by owner direction | The owner later requested redundant Markdown removal. Current state/evidence now live in `README.md`/`AUDIT.md`, and unresolved work lives in `FIXES.md`; this intentionally removes the original checklist's separate `LEDGER.md` deliverable. |
 | Mock-server harness pipeline | MISSING | Previous agent deleted the mock; Pass 2 could not run the required pipeline. Unit isolation tests and live server checks passed, but that is not the requested mock pipeline. |
 | Tiny add-model validation | MISSING | No tiny runtime/fixture or automated end-to-end flow; running against the live service would only fail unknown-model validation and perturb artifacts. |
 

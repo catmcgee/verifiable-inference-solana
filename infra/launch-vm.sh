@@ -62,8 +62,8 @@ BASE=(
 
 if [ "$SEV" = "snp" ]; then
   # SNP CVM: memfd-backed memory, cbitpos=51 (Zen4/Zen5), -bios (SNP guests do
-  # not support KVM readonly pflash). NOTE: currently blocked at firmware by the
-  # APIC-page guest_memfd conversion gap (0xfee00000) — see LEDGER P3 notes.
+  # not support KVM readonly pflash). The matched AMDSEV OVMF build avoids the
+  # legacy APIC-page guest_memfd conversion failure documented in recon.
   echo "launching $NAME (SEV-SNP, $CPUS vCPU, $RAM) ssh port $SSH_PORT"
   sudo "$QEMU" \
     -machine "q35,confidential-guest-support=sev0,memory-backend=ram0" \

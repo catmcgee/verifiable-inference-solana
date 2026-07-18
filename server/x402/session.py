@@ -8,8 +8,8 @@ FastAPI gate lives in middleware.py and the channel program in solana/.
 
 This predates and does not implement draft-solana-session-00. In particular,
 the draft has a different PDA/state layout, canonical SignedVoucher encoding,
-tombstones, idempotency rules, and settlement/finalization semantics. See
-DESIGN.md. The public scheme name is deliberately ``vinfer-session-v1``.
+tombstones, idempotency rules, and settlement/finalization semantics. The
+public scheme name is deliberately ``vinfer-session-v1``.
 
 Voucher signed-bytes layout (48 bytes, must match the channel program):
     channel_pubkey(32) || cumulative_amount(u64 LE) || expires_at(i64 LE)

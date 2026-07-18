@@ -16,7 +16,7 @@ Each safe fix was committed separately.
 | `6850b58` | Completed the authenticated runtime, registry-driven launch, browser E2E endpoint, and devnet receipt chain. | 47 Python tests and full live `vinfer verify` PASS. |
 | `e68eb3c` | Shipped the redesigned console, measurement browser, browser verifier, and sealed TEE chat. | Static build and deployed Playwright privacy canary PASS. |
 | `54ff143` | Pinned approved public and isolated measured-build identities. | Public and measured receipt verification PASS. |
-| `afdcecc` | Replaced stale audit history with current evidence and a concise project ledger. | Post-rewrite history/path scans PASS. |
+| `afdcecc` | Replaced stale audit history with current evidence; its temporary standalone ledger was later folded into the retained docs at the owner's direction. | Post-rewrite history/path scans PASS. |
 | `561e8d2` | Added the deployed Caddy, loopback, TEE, SSH, and Solana explanation. | Desktop/mobile visual checks and deployed hover check PASS. |
 | `09471f9` | Consolidated repeated diagram tooltip rules. | Knip clean; jscpd reports zero clones. |
 

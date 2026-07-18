@@ -14,7 +14,7 @@ box_usd_per_hr: 2.50
 margin: 0.30
 
 # Solana receipt cost per request, devnet-measured CU projected at base fee
-# (LEDGER/CU-NOTES: ~12k CU single post => fee dominated by signature price,
+# (CU-NOTES: ~12k CU single post => fee dominated by signature price,
 # 5000 lamports/sig; at $150/SOL that's ~$0.0008/receipt un-batched).
 receipt_usd: 0.0008
 

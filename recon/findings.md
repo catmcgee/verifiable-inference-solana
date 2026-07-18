@@ -12,7 +12,8 @@ Access: `ssh sunburst` → 213.239.141.40, user `ubuntu`, Ubuntu 24.04 LTS
 > **Row 1 host-control. SNP guests now boot** with the matched AMDSEV OVMF/QEMU
 > path, produce VMPL0 reports, and serve all four measured local models. The
 > current public boot is `grade=snp` and verifies report -> VCEK -> ASK/ARK;
-> exact cloned-disk plain/SNP inference results live in the final LEDGER entry.
+> exact cloned-disk plain/SNP inference results live in
+> `runs/legA-snp-twin-full.jsonl` and `runs/legB-snp-single-full.jsonl`.
 > The older SEV-ES data remains a distinct historical experiment and is still
 > labeled `launch-only`; it is not relabeled or pooled with the SNP twin.
 > STREAM both SEV states: SEV-off (plain VM) 346.19 GB/s vs SEV-ES 256.10 GB/s =

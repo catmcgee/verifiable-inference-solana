@@ -297,7 +297,7 @@ async function main() {
   console.log("shipped self-verifiable receipt ->", receiptOut);
   console.log("");
 
-  // Emit a machine-readable summary (stdout only) for DEVNET-NOTES.md.
+  // Emit a machine-readable summary for audit capture without writing secrets.
   console.log("JSON_RESULT_BEGIN");
   console.log(JSON.stringify(results));
   console.log("JSON_RESULT_END");

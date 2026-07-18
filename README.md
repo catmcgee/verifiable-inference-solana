@@ -4,8 +4,9 @@ Measures what hardware-attested inference actually costs — latency, throughput
 dollars — versus identical unattested infrastructure, on a bare-metal AMD EPYC
 Turin box (SEV family TEE) accessed through Sunburst. Full contract:
 the frozen schemas, `models.yaml`, and the implementation itself. Operational
-evidence lives in **[recon/findings.md](recon/findings.md)**, the running
-**[LEDGER.md](LEDGER.md)**, and the independent **[AUDIT.md](AUDIT.md)**.
+evidence lives in **[recon/findings.md](recon/findings.md)** and the independent
+**[AUDIT.md](AUDIT.md)**. Unresolved work is tracked in
+**[FIXES.md](FIXES.md)**.
 
 ## Headline result
 
@@ -18,12 +19,12 @@ and the causal SNP matrix separate.
 
 ## What works today
 
-- **TEE:** SEV + SEV-ES + SEV-SNP enabled on the box (BIOS recipe in LEDGER;
+- **TEE:** SEV + SEV-ES + SEV-SNP enabled on the box (host evidence in recon;
   kernel 6.17). SEV-ES CVMs measured for leg B; **SNP guests boot** (fresh-built
   AMDSEV OVMF fixed the `guest_memfd`/APIC gap) and the vinfer server runs
   INSIDE one: live `grade=snp`, report → VCEK → ASK → ARK verified to the AMD
   root, receipt on devnet — `vinfer verify runs/snp-receipt.json` is 11/11 PASS
-  with zero skips (solana/DEVNET-NOTES.md).
+  with zero skips (see `AUDIT.md`).
 - **Serving:** all 5 `models.yaml` runtimes are live inside the public 832 GiB
   SNP guest: BitNet, 8B Q4, 8B Q8, 70B Q4, and GLM-5.2 Q4. The canonical
   surface is OpenAI-compatible streaming `POST /v1/chat/completions`; prices
@@ -44,7 +45,7 @@ and the causal SNP matrix separate.
 - **Payments:** the active payment boundary is the official pay 0.22 gateway,
   generated from `models.yaml` with per-model token rates and `x402-upto` usage
   settlement. A real sandbox 402/payment/proxy cycle passes. No mainnet gateway
-  or catalog entry is published yet (`server/x402/DESIGN.md`).
+  or catalog entry is published yet (see Category B2 in `FIXES.md`).
 - **External upstream:** Claude is the only external model API, used only by
   the measured direct/proxied Leg C path. All registry models run from local
   open weights.
