@@ -55,7 +55,7 @@ BASE=(
   -name "$NAME" -enable-kvm -smp "$CPUS" -m "$RAM"
   -drive "file=$DISK,if=virtio,format=qcow2"
   -drive "file=$SEED,if=virtio,format=raw,readonly=on"
-  -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22" -device virtio-net-pci,netdev=net0
+  -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22" -device "virtio-net-pci,netdev=net0"
   -display none -serial "file:$VMS/$NAME-serial.log" -monitor "unix:$VMS/$NAME-monitor.sock,server,nowait"
   -daemonize -pidfile "$VMS/$NAME.pid"
 )

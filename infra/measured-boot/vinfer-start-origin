@@ -6,7 +6,8 @@ models=$(vinfer_cmdline_get vinfer.available_models || true)
 case "$models" in
   *[!a-zA-Z0-9,._-]*) echo "invalid vinfer.available_models" >&2; exit 2 ;;
 esac
-[ -z "$models" ] || export VINFER_AVAILABLE_MODELS=$models
-export VINFER_AUTH_TOKEN=$(cat /home/ubuntu/.config/vinfer/origin-token)
+[ -z "$models" ] || export VINFER_AVAILABLE_MODELS="$models"
+VINFER_AUTH_TOKEN=$(cat /home/ubuntu/.config/vinfer/origin-token)
+export VINFER_AUTH_TOKEN
 exec /home/ubuntu/verified-inference/.venv/bin/uvicorn server.main:app \
   --host 0.0.0.0 --port 8477 --no-access-log

@@ -4,7 +4,7 @@
 # runs the matrix cells for that T. Resumable (run_ids dedupe in the JSONL).
 # Runs long (70B is single-digit tok/s) — launch under nohup.
 set -uo pipefail
-cd ~/verified-inference
+cd "$HOME/verified-inference" || exit 1
 export PATH="$HOME/.local/bin:$PATH"
 OUT="runs/legA-full.jsonl"
 LLAMA="$HOME/src/llama.cpp/build/bin/llama-server"
@@ -22,7 +22,10 @@ if ! curl -s http://127.0.0.1:8477/healthz | grep -q '"ok"'; then
   sleep 5
 fi
 wait_health() { for p in 8601 8602 8603 8604; do
-  for i in $(seq 1 180); do curl -s "http://127.0.0.1:$p/health" | grep -q '"ok"' && break || sleep 5; done; done; }
+  for _ in $(seq 1 180); do
+    if curl -s "http://127.0.0.1:$p/health" | grep -q '"ok"'; then break; fi
+    sleep 5
+  done; done; }
 
 for T in 16 32 64 128; do
   echo "═══ threads=$T $(date -u +%H:%M:%S) ═══"
