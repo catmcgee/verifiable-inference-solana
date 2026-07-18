@@ -8,11 +8,14 @@ import {
   Database,
   Fingerprint,
   Gauge,
+  Globe2,
   KeyRound,
+  LockKeyhole,
   MonitorDot,
   Network,
   ReceiptText,
   Server,
+  SquareTerminal,
 } from "lucide-react";
 import { Masthead } from "@/components/Masthead";
 
@@ -234,12 +237,103 @@ export default function HowItWorksPage() {
 
           <section className="how-section deployment-focus">
             <div className="eyebrow">Deployment</div>
-            <h2>Where each piece runs</h2>
+            <h2>How a public request reaches the TEE</h2>
+            <p className="deployment-lede">
+              The application runs on the Sunburst bare-metal server. Caddy is
+              the only public web entry point; it handles HTTPS and forwards
+              requests over a private host connection to the confidential
+              virtual machine.
+            </p>
+
+            <div className="deploy-route" aria-label="Deployed request path">
+              <article
+                className="deploy-stage"
+                tabIndex={0}
+                data-tooltip="The browser loads the console over HTTPS. For TEE inference it verifies the attestation, then seals the chat before sending it."
+              >
+                <span>1 · internet</span>
+                <Globe2 />
+                <b>Browser</b>
+                <p>Loads the console and starts an HTTPS request.</p>
+              </article>
+              <div className="deploy-connector" aria-hidden="true">→</div>
+              <article
+                className="deploy-stage"
+                tabIndex={0}
+                data-tooltip="Caddy serves the static console, obtains and renews its HTTPS certificate, redirects HTTP to HTTPS, and routes API traffic. It is not an inference or attestation component."
+              >
+                <span>2 · public edge</span>
+                <Network />
+                <b>Caddy</b>
+                <p>Terminates HTTPS and routes the request.</p>
+              </article>
+              <div className="deploy-connector" aria-hidden="true">→</div>
+              <article
+                className="deploy-stage"
+                tabIndex={0}
+                data-tooltip="127.0.0.1 is the server's loopback address. The forwarded API port can be reached from the Sunburst host but cannot be opened directly from the internet."
+              >
+                <span>3 · private hop</span>
+                <Server />
+                <b>Loopback port</b>
+                <p><code>127.0.0.1</code> forwards into the virtual machine.</p>
+              </article>
+              <div className="deploy-connector" aria-hidden="true">→</div>
+              <article
+                className="deploy-stage tee-deploy-stage"
+                tabIndex={0}
+                data-tooltip="FastAPI and the selected llama.cpp or bitnet.cpp runtime execute inside the SEV-SNP guest. Only this guest can open the browser's sealed TEE request."
+              >
+                <span>4 · confidential guest</span>
+                <Box />
+                <b>SNP virtual machine</b>
+                <p>Decrypts, runs the model, and encrypts the response.</p>
+              </article>
+            </div>
+
+            <div className="deployment-details">
+              <article>
+                <div className="deployment-detail-icon privacy"><LockKeyhole /></div>
+                <div>
+                  <h3>Where privacy comes from</h3>
+                  <p>
+                    TLS protects the browser-to-Caddy connection. HPKE adds a
+                    second layer from the browser all the way into the verified
+                    TEE, so Caddy and the Sunburst host forward ciphertext but
+                    cannot read the TEE chat. The private port limits network
+                    access; it does not provide content privacy by itself.
+                  </p>
+                </div>
+              </article>
+              <article>
+                <div className="deployment-detail-icon operator"><SquareTerminal /></div>
+                <div>
+                  <h3>Where Secure Shell (SSH) is used</h3>
+                  <p>
+                    SSH is an operator-only maintenance path used to deploy
+                    builds, start services, and inspect the server. A browser
+                    request never uses SSH, and the application never receives
+                    or sends the operator&apos;s SSH key.
+                  </p>
+                </div>
+              </article>
+              <article>
+                <div className="deployment-detail-icon receipt"><Database /></div>
+                <div>
+                  <h3>How Solana fits in</h3>
+                  <p>
+                    The TEE signs prompt, response, and model hashes. A relay on
+                    the host posts that fixed-size receipt to Solana devnet.
+                    Prompt text, response text, chat history, and user identity
+                    are never included in the on-chain instruction or account.
+                  </p>
+                </div>
+              </article>
+            </div>
+
             <div className="deploy-notes">
-              <div><b>Sunburst</b><span>The bare-metal AMD host, confidential virtual machines, local model runtimes, and receipt relay.</span></div>
-              <div><b>Public interface</b><span>OpenAI-compatible API: <code>POST /v1/chat/completions</code>.</span></div>
-              <div><b>Test access</b><span>Authenticated browser sessions bypass payment. Registered boots post hash-only receipts to devnet.</span></div>
-              <div><b>pay.sh</b><span>An x402 payment gateway can sit in front of the same API. The provider listing is not published yet.</span></div>
+              <div><b>Test access</b><span>Authenticated browser sessions reach the API without payment.</span></div>
+              <div><b>pay.sh</b><span>An x402 gateway can sit in front of the same OpenAI-compatible API. It is not published yet.</span></div>
             </div>
           </section>
 
