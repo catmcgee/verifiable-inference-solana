@@ -84,7 +84,8 @@ flow passes, but no mainnet gateway or provider listing is published.
 
 ```bash
 export VINFER_URL=https://verified-inference.213.239.141.40.sslip.io
-export VINFER_AUTH_TOKEN="operator-issued-access-code"
+export VINFER_AUTH_TOKEN="strong-gateway-bearer-token"
+export VINFER_ACCESS_CODE="operator-issued-browser-code"
 
 uv run vinfer attest
 uv run vinfer infer --model bitnet-2b --prompt 'hello' --e2e

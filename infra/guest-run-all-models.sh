@@ -8,6 +8,7 @@ THREADS=${VINFER_THREADS:-64}
 SMALL_MOUNT=${VINFER_SMALL_MOUNT:-/mnt/models}
 GLM_MOUNT=${VINFER_GLM_MOUNT:-/mnt/glm}
 TOKEN_FILE=${VINFER_ORIGIN_TOKEN_FILE:-$HOME/.config/vinfer/origin-token}
+ACCESS_CODE_FILE=${VINFER_ACCESS_CODE_FILE:-$HOME/.config/vinfer/access-code}
 RELAY_TOKEN_FILE=${VINFER_RECEIPT_RELAY_TOKEN_FILE:-$HOME/.config/vinfer/receipt-relay-token}
 
 if ! test -c /dev/sev-guest; then
@@ -24,6 +25,8 @@ mountpoint -q "$SMALL_MOUNT" || sudo mount -o ro /dev/vdc "$SMALL_MOUNT"
 mountpoint -q "$GLM_MOUNT" || sudo mount -o ro /dev/vdd "$GLM_MOUNT"
 test -s "$TOKEN_FILE"
 test "$(stat -c %a "$TOKEN_FILE")" = 600
+test -s "$ACCESS_CODE_FILE"
+test "$(stat -c %a "$ACCESS_CODE_FILE")" = 600
 test -s "$RELAY_TOKEN_FILE"
 test "$(stat -c %a "$RELAY_TOKEN_FILE")" = 600
 
@@ -96,6 +99,7 @@ fi
 VINFER_SEV_MODE=snp \
 VINFER_REQUIRE_AUTH=1 \
 VINFER_AUTH_TOKEN="$(cat "$TOKEN_FILE")" \
+VINFER_ACCESS_CODE="$(cat "$ACCESS_CODE_FILE")" \
 VINFER_AUTH_COOKIE_PATH=/ \
 VINFER_AUTH_SECURE_COOKIE=1 \
 VINFER_RECEIPT_RELAY_URL=http://10.0.2.2:8480 \

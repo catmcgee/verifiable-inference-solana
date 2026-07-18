@@ -38,8 +38,8 @@ Bluntest findings first:
    GLM-in-SNP, memory latency, and all leg-D rungs are absent.
 6. **Leg D is intentionally deferred.** The proof instruction remains an
    explicit non-verifying stub; no ZK inference result is claimed.
-7. **Both current live chains pass.** `vinfer-0.8.1` open-model and
-   `vinfer-legc-proxy-0.2.1` Claude-proxy receipts passed the SNP report,
+7. **Both current live chains pass.** `vinfer-0.8.2` open-model and
+   `vinfer-legc-proxy-0.2.2` Claude-proxy receipts passed the SNP report,
    VCEK/ASK/ARK chain, v2 binding, registry PDA, receipt signature, receipt PDA
    derivation, and exact on-chain content with no skips.
 8. **TLS is live and AWS is not used.** Caddy is the TLS reverse proxy on the
@@ -57,6 +57,10 @@ Bluntest findings first:
 
 Further remediation on 2026-07-18:
 
+- Separated the human browser code from the strong gateway bearer. The three
+  live routes accept the mode-0600 browser code, reject an incorrect code, and
+  still accept the unchanged internal bearer as `gateway`. Fresh 0.8.2/0.2.2
+  attestations and receipts were registered and fully verified on devnet.
 - Deployed `vinfer-0.8.1` and `vinfer-legc-proxy-0.2.1`, registered both boot
   keys on devnet, and verified fresh confirmed receipts end to end. The Claude
   canary returned the requested text while explicitly reporting that Anthropic
@@ -111,7 +115,7 @@ Further remediation on 2026-07-18:
 
 | Command/check | Result |
 |---|---|
-| `make test` | PASS: 52 Python tests, including browser HPKE interoperability, sealed streaming privacy, request caps, and receipt retention bounds |
+| `make test` | PASS: 54 Python tests, including separate browser/bearer credentials, HPKE interoperability, sealed streaming privacy, request caps, and receipt retention bounds |
 | `make check` | PASS: Python tests, registry hash verification, generated-measurement drift check, web lint/static build, Solana formatting, and `git diff --check` |
 | Request/session schema validation | PASS: 2,772 request records + 8 session records across raw artifacts, 0 errors |
 | `cargo test --manifest-path solana/programs/verified_inference/Cargo.toml` | PASS: 2/2 |
@@ -121,8 +125,8 @@ Further remediation on 2026-07-18:
 | `npm audit --audit-level=moderate` | PASS: 0 vulnerabilities |
 | real report render | PASS: 952 retained requests, 4 sessions, 174,012-byte HTML with complete linked run provenance |
 | sparse synthetic report render | PASS after empty-chart fix; previously crashed at prompt 128 |
-| `vinfer verify /tmp/vinfer-081-receipt.json` | PASS: full live 0.8.1 chain, exact receipt index 0, no skips |
-| `vinfer verify /tmp/vinfer-proxy-live-receipt.json` | PASS: full live Claude-proxy chain and exact confirmed receipt, no skips |
+| `vinfer verify /tmp/vinfer-082-rotation-receipt.json` | PASS: full live 0.8.2 chain, exact receipt index 1, no skips |
+| `vinfer verify /tmp/vinfer-proxy-022-rotation-receipt.json` | PASS: full live 0.2.2 Claude-proxy chain and exact receipt index 0, no skips |
 | Gitleaks full-history scan | PASS after authorized rewrite: 0 findings; removed paths/private URL/fingerprints absent from reachable history |
 | pay PAY.md validation | PASS with `pay catalog check --no-probe`; intentionally non-publishable placeholder URL |
 | runtime-YAML -> `pay skills provider sync` -> validator | PASS: generated from `models.yaml`; 4 endpoints walked |
@@ -169,7 +173,7 @@ Further remediation on 2026-07-18:
 | pay.sh generation pipeline | PASS after fix | `models.yaml` -> `generate_runtime.py` -> provider sync -> generated PAY/OpenAPI -> catalog check passes. Generator never publishes. |
 | Listing response guarantee | PASS for the live origin | Completion carries the signed receipt, attestation grade, confirmed receipt PDA, and devnet transaction. pay.sh publication remains intentionally blocked on mainnet and a paid hostname. |
 | Binding v2 formula | PASS | `server/main.py`; live KDS verification proved pubkey + complete registry hash + build hash binding. |
-| Registry hash exact definition | PASS after fix | Live build 0.8.1 uses all five hash-bearing pairs (`49dc89...`); attestation lists all five runtimes in `active_models`. Devnet PDA exact-match passed. |
+| Registry hash exact definition | PASS after fix | Live build 0.8.2 uses all five hash-bearing pairs (`49dc89...`); attestation lists all five runtimes in `active_models`. Devnet PDA exact-match passed. |
 | PDA binding version / v1 compatibility | PASS | Account carries both version/hash; CLI prints v1/v2 and handles both (`cli/vinfer.py:185-201`). |
 | Add-a-model flow | PARTIAL after fix | Bench now uses n=10; launcher, pricing, pay runtime, provider sync, and validation consume `models.yaml`. Automated restart/re-attest/PDA update and a tiny fixture remain missing. |
 
@@ -201,7 +205,7 @@ Further remediation on 2026-07-18:
 | Groth16 alt_bn128 verification | MISSING | Stub records hashes and `verified=false`; no Groth16 dependency or syscall. |
 | Mainnet economics projection | MISSING | No base/p50/p90 priority-fee, rent, single/batch, $/receipt, and $/1M complete projection. |
 | `vinfer verify` full chain | PASS | Recorded SNP receipt passed KDS chain, policy, key binding, PDA, registry, signature, and exact receipt contents/index 0. |
-| Live boot on-chain receipt continuity | PASS | Build 0.8.1 is registered at `ENJTd...u6qNVDh`; a sealed BitNet request posted receipt index 0 and full `vinfer verify` returned `RESULT: OK`. Proxy build 0.2.1 is registered at `6yUSN...h6azL`; its fresh confirmed receipt also passed the full chain. |
+| Live boot on-chain receipt continuity | PASS | Build 0.8.2 is registered at `3Ujr6...HtRCUk`; an 8B request posted receipt index 1 and full `vinfer verify` returned `RESULT: OK`. Proxy build 0.2.2 is registered at `EQpcM...LLZwPb`; its confirmed receipt index 0 also passed the full chain. |
 
 ### Encryption, Privacy, Secrets, and TLS
 

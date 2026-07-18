@@ -4,10 +4,11 @@ set -euo pipefail
 
 ROOT=${VINFER_ROOT:-$HOME/verified-inference}
 TOKEN_FILE=${VINFER_ORIGIN_TOKEN_FILE:-$HOME/.config/vinfer/origin-token}
+ACCESS_CODE_FILE=${VINFER_ACCESS_CODE_FILE:-$HOME/.config/vinfer/access-code}
 RELAY_TOKEN_FILE=${VINFER_RECEIPT_RELAY_TOKEN_FILE:-$HOME/.config/vinfer/receipt-relay-token}
 
 test -c /dev/sev-guest
-for file in "$TOKEN_FILE" "$RELAY_TOKEN_FILE"; do
+for file in "$TOKEN_FILE" "$ACCESS_CODE_FILE" "$RELAY_TOKEN_FILE"; do
   test -s "$file"
   test "$(stat -c %a "$file")" = 600
 done
@@ -33,6 +34,7 @@ done
 VINFER_SEV_MODE=snp \
 VINFER_REQUIRE_AUTH=1 \
 VINFER_AUTH_TOKEN="$(cat "$TOKEN_FILE")" \
+VINFER_ACCESS_CODE="$(cat "$ACCESS_CODE_FILE")" \
 VINFER_AUTH_COOKIE_PATH=/ \
 VINFER_AUTH_SECURE_COOKIE=1 \
 VINFER_RECEIPT_RELAY_URL=http://10.0.2.2:8480 \

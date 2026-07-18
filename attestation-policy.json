@@ -21,7 +21,9 @@
     "c9b9400103d841563d881c95f8367b5aec44282cd5cc8a13c46c2d8c1ce4cf21",
     "64988a09eb78bac357f29272846d5f4e43d691c89b0c1d9638cd89aac200e5b1",
     "b0fcd389cb77a60fdef1066a58486942df75f720dec9683294cb9c18878775d0",
-    "39a8ce63a6b73f02fb447dc4135ca0a98a7179918b95f3782546816a15dd0708"
+    "39a8ce63a6b73f02fb447dc4135ca0a98a7179918b95f3782546816a15dd0708",
+    "62395e1effca6d299f68e92e3252b97a906edaed1ebfe9280356cbd006b854b2",
+    "1dc7738446c9652308a8d7f61807dc4e841596e85cf0d58e4182a2c9081020d0"
   ],
   "allowed_builds": [
     {
@@ -57,6 +59,16 @@
     {
       "measurement": "7637fb0b5e46bcab8111cc634caf0e43faba4b61ec3d1ad7d8bd96a257097729447e6524439400142fa862fb0158b9b1",
       "server_build_hash": "39a8ce63a6b73f02fb447dc4135ca0a98a7179918b95f3782546816a15dd0708",
+      "execution_mode": "guest-declared"
+    },
+    {
+      "measurement": "7637fb0b5e46bcab8111cc634caf0e43faba4b61ec3d1ad7d8bd96a257097729447e6524439400142fa862fb0158b9b1",
+      "server_build_hash": "62395e1effca6d299f68e92e3252b97a906edaed1ebfe9280356cbd006b854b2",
+      "execution_mode": "guest-declared"
+    },
+    {
+      "measurement": "7637fb0b5e46bcab8111cc634caf0e43faba4b61ec3d1ad7d8bd96a257097729447e6524439400142fa862fb0158b9b1",
+      "server_build_hash": "1dc7738446c9652308a8d7f61807dc4e841596e85cf0d58e4182a2c9081020d0",
       "execution_mode": "guest-declared"
     },
     {

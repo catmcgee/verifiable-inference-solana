@@ -13,12 +13,21 @@ if [ ! -r /dev/sev-guest ] || [ ! -w /dev/sev-guest ]; then
 fi
 test -r /dev/sev-guest -a -w /dev/sev-guest
 TOKEN_FILE="$HOME/.config/vinfer/origin-token"
+ACCESS_CODE_FILE="$HOME/.config/vinfer/access-code"
 test -s "$TOKEN_FILE" || {
   echo "missing $TOKEN_FILE" >&2
   exit 2
 }
+test -s "$ACCESS_CODE_FILE" || {
+  echo "missing $ACCESS_CODE_FILE" >&2
+  exit 2
+}
 test "$(stat -c %a "$TOKEN_FILE")" = "600" || {
   echo "$TOKEN_FILE must have mode 600" >&2
+  exit 2
+}
+test "$(stat -c %a "$ACCESS_CODE_FILE")" = "600" || {
+  echo "$ACCESS_CODE_FILE must have mode 600" >&2
   exit 2
 }
 
@@ -29,6 +38,7 @@ mkdir -p "$HOME/logs/vinfer" "$HOME/.local/state/vinfer"
 VINFER_SEV_MODE=snp \
 VINFER_REQUIRE_AUTH=1 \
 VINFER_AUTH_TOKEN="$(cat "$TOKEN_FILE")" \
+VINFER_ACCESS_CODE="$(cat "$ACCESS_CODE_FILE")" \
 VINFER_AUTH_COOKIE_PATH=/vinfer \
 VINFER_AUTH_SECURE_COOKIE=1 \
   nohup uv run uvicorn server.main:app --host 0.0.0.0 --port 8477 \

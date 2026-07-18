@@ -47,7 +47,7 @@ def _registry_pairs() -> list[dict]:
     ]
 
 
-SERVER_BUILD = "vinfer-0.8.1"
+SERVER_BUILD = "vinfer-0.8.2"
 STATIC_REGISTRY_HASH = registry.pairs_hash(_registry_pairs())
 BUILD_IDENTITY = load_identity(SERVER_BUILD, STATIC_REGISTRY_HASH)
 SERVER_BUILD_HASH = BUILD_IDENTITY.build_hash
@@ -184,7 +184,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="verified-inference", version="0.8.1", lifespan=lifespan)
+app = FastAPI(title="verified-inference", version="0.8.2", lifespan=lifespan)
 
 
 class InferRequest(BaseModel):

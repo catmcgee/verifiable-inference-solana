@@ -12,6 +12,7 @@ from server import access
 
 
 TOKEN = "test-access-token-with-at-least-32-characters"
+BROWSER_CODE = "browser-code-10"
 
 
 def request(*, authorization: str | None = None, cookie: str | None = None) -> Request:
@@ -28,6 +29,7 @@ class AccessTests(unittest.TestCase):
         values = {
             "VINFER_REQUIRE_AUTH": "1",
             "VINFER_AUTH_TOKEN": TOKEN,
+            "VINFER_ACCESS_CODE": BROWSER_CODE,
             "VINFER_AUTH_SESSION_TTL": "3600",
             "VINFER_AUTH_COOKIE_PATH": "/vinfer",
             "VINFER_AUTH_SECURE_COOKIE": "1",
@@ -43,6 +45,20 @@ class AccessTests(unittest.TestCase):
         with self.env(VINFER_AUTH_TOKEN="too-short"):
             with self.assertRaisesRegex(RuntimeError, "at least 32"):
                 access.validate_config()
+
+    def test_config_rejects_short_browser_code(self):
+        with self.env(VINFER_ACCESS_CODE="short"):
+            with self.assertRaisesRegex(RuntimeError, "at least 10"):
+                access.validate_config()
+
+    def test_browser_code_is_separate_from_bearer_token(self):
+        with self.env():
+            self.assertTrue(access.access_code_valid(BROWSER_CODE))
+            self.assertFalse(access.access_code_valid(TOKEN))
+            self.assertEqual(
+                access.access_mode(request(authorization=f"Bearer {TOKEN}")),
+                "gateway",
+            )
 
     def test_bearer_auth_is_constant_shape_and_fail_closed(self):
         with self.env():

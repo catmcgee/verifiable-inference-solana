@@ -34,7 +34,7 @@ from server.request_validation import MAX_MESSAGES, validate_messages
 UPSTREAM = "https://api.anthropic.com/v1/messages"
 CLAUDE_MODEL = os.environ.get("VINFER_C_MODEL", "claude-haiku-4-5-20251001")
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-PROXY_BUILD = "vinfer-legc-proxy-0.2.1"
+PROXY_BUILD = "vinfer-legc-proxy-0.2.2"
 MODEL_DECLARATION_HASH = hashlib.sha256(
     f"anthropic-upstream-model-id:{CLAUDE_MODEL}".encode()
 ).hexdigest()
@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="vinfer-leg-c-proxy",
-    version="0.2.1",
+    version="0.2.2",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,

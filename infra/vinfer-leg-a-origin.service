@@ -14,10 +14,11 @@ Environment=VINFER_REQUIRE_AUTH=1
 Environment=VINFER_AUTH_COOKIE_PATH=/
 Environment=VINFER_AUTH_SECURE_COOKIE=1
 Environment=VINFER_AUTH_TOKEN_FILE=/home/ubuntu/.config/vinfer/origin-token
+Environment=VINFER_ACCESS_CODE_FILE=/home/ubuntu/.config/vinfer/access-code
 Environment=VINFER_RECEIPT_RELAY_URL=http://127.0.0.1:8480
 Environment=VINFER_RECEIPT_RELAY_TOKEN_FILE=/home/ubuntu/.config/vinfer/receipt-relay-token
 Environment=VINFER_AVAILABLE_MODELS=bitnet-2b,8b-q4,8b-q8,70b-q4
-ExecStart=/bin/bash -c 'export VINFER_AUTH_TOKEN="$$(cat "$${VINFER_AUTH_TOKEN_FILE}")"; exec /home/ubuntu/verified-inference/.venv/bin/uvicorn server.main:app --host 127.0.0.1 --port 8481 --no-access-log'
+ExecStart=/bin/bash -c 'export VINFER_AUTH_TOKEN="$$(cat "$${VINFER_AUTH_TOKEN_FILE}")" VINFER_ACCESS_CODE="$$(cat "$${VINFER_ACCESS_CODE_FILE}")"; exec /home/ubuntu/verified-inference/.venv/bin/uvicorn server.main:app --host 127.0.0.1 --port 8481 --no-access-log'
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=true

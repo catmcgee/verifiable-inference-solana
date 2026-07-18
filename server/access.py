@@ -1,9 +1,9 @@
 """Authentication for non-payment access to inference endpoints.
 
-The public pay gateway authenticates to the origin with a bearer token after it
-has verified payment. The browser exchanges that same operator-provided access
-code for a short-lived, HttpOnly session cookie. No credential is embedded in
-the static frontend or persisted by the server.
+The public pay gateway authenticates to the origin with a strong bearer token
+after it has verified payment. The browser exchanges a separate operator code
+for a short-lived, HttpOnly session cookie signed by that bearer token. No
+credential is embedded in the static frontend or persisted by the server.
 """
 
 from __future__ import annotations
@@ -27,15 +27,18 @@ DEFAULT_TTL_SECONDS = 8 * 60 * 60
 class AccessSettings:
     required: bool
     token: str
+    browser_code: str
     ttl_seconds: int
     cookie_path: str
     secure_cookie: bool
 
 
 def settings() -> AccessSettings:
+    token = os.environ.get("VINFER_AUTH_TOKEN", "")
     return AccessSettings(
         required=os.environ.get("VINFER_REQUIRE_AUTH", "0") == "1",
-        token=os.environ.get("VINFER_AUTH_TOKEN", ""),
+        token=token,
+        browser_code=os.environ.get("VINFER_ACCESS_CODE", token),
         ttl_seconds=int(os.environ.get("VINFER_AUTH_SESSION_TTL", DEFAULT_TTL_SECONDS)),
         cookie_path=os.environ.get("VINFER_AUTH_COOKIE_PATH", "/"),
         secure_cookie=os.environ.get("VINFER_AUTH_SECURE_COOKIE", "1") == "1",
@@ -49,6 +52,11 @@ def validate_config() -> None:
     if len(config.token) < 32:
         raise RuntimeError(
             "VINFER_AUTH_TOKEN must contain at least 32 characters when "
+            "VINFER_REQUIRE_AUTH=1"
+        )
+    if len(config.browser_code) < 10:
+        raise RuntimeError(
+            "VINFER_ACCESS_CODE must contain at least 10 characters when "
             "VINFER_REQUIRE_AUTH=1"
         )
     if config.ttl_seconds < 60:
@@ -125,7 +133,7 @@ def access_code_valid(access_code: str) -> bool:
     return (
         not config.required
         or bool(access_code)
-        and hmac.compare_digest(access_code, config.token)
+        and hmac.compare_digest(access_code, config.browser_code)
     )
 
 
