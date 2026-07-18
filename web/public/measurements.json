@@ -34078,7 +34078,11 @@
     "program_id": "Dp5LxL9XHZUVXK129rxwBafqHMg1Y29Zda2svx8vXEkx",
     "register_attestation_cu": 10171,
     "post_receipt_cu": 13580,
-    "batched_cu_per_receipt": 465,
-    "note": "binding v2; ~$0.0008/receipt at base fee."
+    "devnet_measured_at": "2026-07-16",
+    "batched_cu_per_receipt": 371.7,
+    "batched_network": "localnet",
+    "batched_measured_at": "2026-07-18T21:40:33.818Z",
+    "batch_size": 32,
+    "note": "Register and single-receipt costs were measured on devnet. Batch cost was measured on localnet and is not a devnet result."
   }
 }

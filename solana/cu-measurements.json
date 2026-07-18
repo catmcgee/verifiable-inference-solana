@@ -1,0 +1,13 @@
+{
+  "program_id": "Dp5LxL9XHZUVXK129rxwBafqHMg1Y29Zda2svx8vXEkx",
+  "devnet": {
+    "measured_at": "2026-07-16",
+    "register_attestation_cu": 10171,
+    "post_receipt_cu": 13580
+  },
+  "localnet": {
+    "measured_at": "2026-07-18T21:40:33.818Z",
+    "batch_size": 32,
+    "post_receipt_batch_cu": 11895
+  }
+}

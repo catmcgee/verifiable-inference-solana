@@ -105,6 +105,10 @@ interface MeasurementsDoc {
     register_attestation_cu?: number;
     post_receipt_cu?: number;
     batched_cu_per_receipt?: number;
+    devnet_measured_at?: string;
+    batched_network?: string;
+    batched_measured_at?: string;
+    batch_size?: number;
     note?: string;
   };
   request_measurements?: {
@@ -151,11 +155,10 @@ function Hero({ doc }: { doc: MeasurementsDoc }) {
     <section className="m-section m-hero">
       <div className="eyebrow">What the measurements say</div>
       <p className="m-hero-intro">
-        These runs compare a plain virtual machine (VM) with AMD Secure
-        Encrypted Virtualization with Encrypted State (SEV-ES). The protected
-        VM is a Trusted Execution Environment (TEE). The STREAM benchmark
-        measures memory speed; model speed is measured in generated tokens per
-        second (tok/s).
+        CPU inference moves model weights from random-access memory (RAM) into
+        the processor. The STREAM benchmark isolates that transfer without
+        running a model. Comparing it with complete model runs shows how much
+        the raw cost of memory encryption affects inference.
       </p>
       <div className="m-hero-values">
         <div className="m-hv ceiling">
@@ -175,11 +178,9 @@ function Hero({ doc }: { doc: MeasurementsDoc }) {
         </div>
       </div>
       <p className="m-finding">
-        STREAM repeatedly reads and writes large arrays to measure memory
-        bandwidth; it does not run a model. Memory encryption made that stress
-        test 26% slower, while actual model inference was about 2% slower in
-        the matched runs. STREAM is therefore a ceiling, not an estimate of
-        the slowdown a model user sees.
+        Encrypting memory reduced raw RAM speed by 26%. In the matched model
+        tests, inference was only about 2% slower because running a model also
+        spends time on CPU work that is not limited by RAM speed.
       </p>
     </section>
   );
@@ -496,6 +497,8 @@ function Onchain({ oc }: { oc: MeasurementsDoc["onchain_devnet"] }) {
             DASH
           )}
         </dd>
+        <dt>single-instruction network</dt>
+        <dd>devnet{oc?.devnet_measured_at ? ` · ${oc.devnet_measured_at}` : ""}</dd>
         <dt>post one receipt</dt>
         <dd>
           {oc?.post_receipt_cu != null ? (
@@ -515,6 +518,12 @@ function Onchain({ oc }: { oc: MeasurementsDoc["onchain_devnet"] }) {
           ) : (
             DASH
           )}
+        </dd>
+        <dt>batch measurement</dt>
+        <dd>
+          {oc?.batched_network ?? DASH}
+          {oc?.batch_size != null ? ` · ${oc.batch_size} receipts` : ""}
+          {oc?.batched_measured_at ? ` · ${oc.batched_measured_at.slice(0, 10)}` : ""}
         </dd>
         <dt>program</dt>
         <dd className="hash">

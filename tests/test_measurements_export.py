@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from report.measurements_json import _all_request_rows
+import json
+
+from report.measurements_json import ROOT, _all_request_rows
 
 
 class MeasurementsExportTests(unittest.TestCase):
@@ -14,6 +16,14 @@ class MeasurementsExportTests(unittest.TestCase):
         self.assertTrue(any(row["model"] == "glm-5.2-q4" for row in rows))
         self.assertTrue(any(row["leg"] == "C-direct" for row in rows))
         self.assertTrue(any(row["leg"] == "C-proxied" for row in rows))
+
+    def test_solana_measurements_preserve_network_provenance(self) -> None:
+        measurements = json.loads(
+            (ROOT / "solana" / "cu-measurements.json").read_text()
+        )
+        self.assertEqual(measurements["devnet"]["post_receipt_cu"], 13_580)
+        self.assertEqual(measurements["localnet"]["batch_size"], 32)
+        self.assertNotIn("post_receipt_batch_cu", measurements["devnet"])
 
 
 if __name__ == "__main__":

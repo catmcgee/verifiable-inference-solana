@@ -628,6 +628,15 @@ describe("verified_inference", () => {
 
     if (process.env.UPDATE_CU_NOTES !== "1") return;
 
+    const metricsPath = path.join(__dirname, "..", "cu-measurements.json");
+    const metrics = JSON.parse(fs.readFileSync(metricsPath, "utf8"));
+    metrics.localnet = {
+      measured_at: new Date().toISOString(),
+      batch_size: BATCH_N,
+      post_receipt_batch_cu: perReceiptBatch?.cu ?? null,
+    };
+    fs.writeFileSync(metricsPath, JSON.stringify(metrics, null, 2) + "\n");
+
     // Refresh the measured table in solana/CU-NOTES.md between markers.
     const notesPath = path.join(__dirname, "..", "CU-NOTES.md");
     if (fs.existsSync(notesPath)) {

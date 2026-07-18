@@ -281,13 +281,25 @@ def main() -> None:
             "note": "E2E is observational when provider stop lengths differ; the matched-shape TTFT delta is the proxy comparison.",
         }
 
-    # --- on-chain (devnet) economics ---
+    # --- on-chain economics, preserving the measured network for each value ---
+    cu = json.loads((ROOT / "solana" / "cu-measurements.json").read_text())
+    devnet_cu = cu["devnet"]
+    localnet_cu = cu["localnet"]
     out["onchain_devnet"] = {
-        "program_id": "Dp5LxL9XHZUVXK129rxwBafqHMg1Y29Zda2svx8vXEkx",
-        "register_attestation_cu": 10171,
-        "post_receipt_cu": 13580,
-        "batched_cu_per_receipt": 465,
-        "note": "binding v2; ~$0.0008/receipt at base fee.",
+        "program_id": cu["program_id"],
+        "register_attestation_cu": devnet_cu["register_attestation_cu"],
+        "post_receipt_cu": devnet_cu["post_receipt_cu"],
+        "devnet_measured_at": devnet_cu["measured_at"],
+        "batched_cu_per_receipt": round(
+            localnet_cu["post_receipt_batch_cu"] / localnet_cu["batch_size"], 1
+        ),
+        "batched_network": "localnet",
+        "batched_measured_at": localnet_cu["measured_at"],
+        "batch_size": localnet_cu["batch_size"],
+        "note": (
+            "Register and single-receipt costs were measured on devnet. "
+            "Batch cost was measured on localnet and is not a devnet result."
+        ),
     }
     out["provenance"] = {
         "stream_rows": "runs/legAB-stream.jsonl",
@@ -305,8 +317,7 @@ def main() -> None:
     web = ROOT / "web" / "public"
     web.mkdir(parents=True, exist_ok=True)
     (web / "measurements.json").write_text(json.dumps(out, indent=2))
-    (ROOT / "report" / "measurements.json").write_text(json.dumps(out, indent=2))
-    print("wrote web/public/measurements.json + report/measurements.json")
+    print("wrote web/public/measurements.json")
     print(
         f"  stream tax {out['stream_anchor']['sev_es_tax_pct']}% | "
         f"inference tax { {m: t['tax_pct'] for m, t in tax.items()} }"
