@@ -1,12 +1,12 @@
 // Deadpan copy tables. State facts; never grade up.
 
-export interface SevLabel {
+interface SevLabel {
   label: string;
   detail: string;
 }
 
 // metrics.sev_mode: off | sev | es | snp
-export const SEV_LABELS: Record<string, SevLabel> = {
+const SEV_LABELS: Record<string, SevLabel> = {
   off: {
     label: "no TEE",
     detail: "memory in plaintext; nothing attested.",
@@ -20,8 +20,8 @@ export const SEV_LABELS: Record<string, SevLabel> = {
     detail: "memory and register state encrypted; no runtime attestation.",
   },
   snp: {
-    label: "SEV-SNP attested",
-    detail: "signed runtime report; verifiable against the AMD key hierarchy.",
+    label: "AMD SEV-SNP",
+    detail: "AMD signed the VM launch. See attestation for the verified execution scope.",
   },
 };
 
@@ -34,10 +34,10 @@ export function sevLabel(mode: string | null | undefined): SevLabel | null {
 
 // GET /v1/attestation → grade, in plain words. Values: none | launch-only |
 // snp. An unrecognized grade is shown as returned.
-export const GRADE_LABELS: Record<string, string> = {
+const GRADE_LABELS: Record<string, string> = {
   none: "no TEE — memory plaintext",
   "launch-only": "SEV memory-encrypted, no runtime report",
-  snp: "SEV-SNP reported by server",
+  snp: "AMD SEV-SNP report",
 };
 
 export function gradeLabel(grade: string | null | undefined): string | null {
@@ -45,31 +45,43 @@ export function gradeLabel(grade: string | null | undefined): string | null {
   return GRADE_LABELS[grade] ?? grade;
 }
 
-export interface Leg {
+interface Leg {
   id: string;
-  disabled?: boolean;
+  label: string;
   desc: string;
+  availability: "live" | "recorded" | "missing";
 }
 
 export const LEGS: Leg[] = [
   {
     id: "A",
-    desc: "same box, SEV off. Nothing verifiable; the trust anchor is the operator.",
+    label: "Open-source models without TEE",
+    desc: "Runs the open models directly on the AMD host. This is the speed and cost baseline; there is no memory encryption or attestation.",
+    availability: "live",
   },
   {
     id: "B",
-    desc: "SEV CVM on the same box. Launch measurement; runtime attestation where SNP.",
+    label: "Open-source models in TEE",
+    desc: "Runs open models inside AMD SEV-SNP. The browser verifies the attested key before encrypting the prompt and decrypts the response locally.",
+    availability: "live",
   },
   {
     id: "C",
-    desc: "attested proxy to the Claude API. The proxy code is verifiable; the inference is not — Anthropic sees plaintext.",
+    label: "Claude through TEE proxy",
+    desc: "Verifies the proxy, not Claude inference. Anthropic receives the plaintext prompt.",
+    availability: "live",
   },
   {
     id: "D",
-    disabled: true,
-    desc: "not measured; the on-chain verifier is still a stub. Integrity, not input privacy.",
+    label: "ZK proof (pending GPUs)",
+    desc: "Planned when GPUs are added to Sunburst. Tachyon is the intended proving path for models up to 2.4B parameters; no proof is live yet.",
+    availability: "missing",
   },
 ];
+
+export function legLabel(id: string): string {
+  return LEGS.find((item) => item.id === id)?.label ?? id;
+}
 
 // Anchor attestation-registry program on devnet; used when the receipt
 // carries no per-receipt PDA (the P2 server does not emit one).

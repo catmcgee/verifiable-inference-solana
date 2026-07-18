@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChartNoAxesCombined, LogIn, LogOut, Send } from "lucide-react";
 import type { Metrics, Receipt } from "@/lib/api";
 import { fmtClock, fmtMs, fmtRate, DASH } from "@/lib/format";
 
@@ -12,6 +13,71 @@ export interface ChatMessage {
   metrics?: Metrics;
   receipt?: Receipt;
   error?: boolean;
+}
+
+export function AccessBar({
+  required,
+  authenticated,
+  loading,
+  error,
+  onLogin,
+  onLogout,
+}: {
+  required: boolean;
+  authenticated: boolean;
+  loading: boolean;
+  error: string | null;
+  onLogin: (accessCode: string) => Promise<boolean>;
+  onLogout: () => Promise<void>;
+}) {
+  const [accessCode, setAccessCode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!required && authenticated) return null;
+
+  if (authenticated) {
+    return (
+      <div className="accessbar">
+        <span className="access-state">test session active</span>
+        <button type="button" onClick={() => void onLogout()}>
+          <LogOut size={14} aria-hidden="true" />
+          sign out
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="accessbar access-login"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (!accessCode || submitting) return;
+        setSubmitting(true);
+        const accepted = await onLogin(accessCode);
+        setSubmitting(false);
+        if (accepted) setAccessCode("");
+      }}
+    >
+      <label htmlFor="access-code">test access</label>
+      <input
+        id="access-code"
+        type="password"
+        value={accessCode}
+        onChange={(event) => setAccessCode(event.target.value)}
+        placeholder="access code"
+        autoComplete="one-time-code"
+        inputMode="text"
+        spellCheck={false}
+        disabled={loading || submitting}
+      />
+      <button type="submit" disabled={!accessCode || loading || submitting}>
+        <LogIn size={14} aria-hidden="true" />
+        {submitting ? "checking" : "sign in"}
+      </button>
+      {error && <span className="access-error">{error}</span>}
+    </form>
+  );
 }
 
 function MetaLine({ m, receiptId }: { m?: Metrics; receiptId?: string }) {
@@ -48,10 +114,12 @@ export function MessageList({
   messages,
   pending,
   pendingModel,
+  sealed,
 }: {
   messages: ChatMessage[];
   pending: boolean;
   pendingModel: string | null;
+  sealed: boolean;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -62,11 +130,13 @@ export function MessageList({
     <div className="messages">
       {messages.length === 0 && !pending && (
         <div className="empty">
-          <div className="eyebrow">no requests yet</div>
+          <div className="empty-visual" aria-hidden="true">
+            <ChartNoAxesCombined />
+          </div>
+          <div className="eyebrow">No requests yet</div>
           <p>
-            Pick a leg and a model, send a prompt. Every response comes back
-            with its measurements and a signed receipt; the panel shows what
-            the server reported — nothing more.
+            Choose how to run inference, choose a model, then send a prompt.
+            Each response includes timing, cost, attestation status, and a receipt.
           </p>
         </div>
       )}
@@ -94,8 +164,7 @@ export function MessageList({
       {pending && (
         <div className="genline" aria-live="polite">
           <div className="genline-text">
-            generating on {pendingModel ?? DASH} — v1 is non-streaming; the
-            response renders when the run completes.
+            {sealed ? "sealed inference from" : "streaming from"} {pendingModel ?? DASH}
           </div>
           <div className="sweep" />
         </div>
@@ -158,6 +227,7 @@ export function Composer({
         />
       </label>
       <button type="submit" className="run-btn" disabled={disabled}>
+        <Send size={16} aria-hidden="true" />
         {pending ? "running" : "run"}
       </button>
     </form>

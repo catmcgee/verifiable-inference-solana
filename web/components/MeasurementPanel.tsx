@@ -17,6 +17,27 @@ import {
   REGISTRY_PROGRAM,
   sevLabel,
 } from "@/lib/labels";
+import type { BrowserVerification } from "@/lib/attestationVerifier";
+import {
+  BadgeCheck,
+  Cpu,
+  ReceiptText,
+  RefreshCw,
+  TimerReset,
+  WalletCards,
+} from "lucide-react";
+
+function SectionTitle({ icon: Icon, children }: {
+  icon: typeof TimerReset;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="section-title">
+      <span className="section-icon" aria-hidden="true"><Icon size={15} /></span>
+      <span className="eyebrow">{children}</span>
+    </div>
+  );
+}
 
 export interface SessionTotals {
   requests: number;
@@ -53,7 +74,7 @@ function LastResponse({ m }: { m: Metrics | null }) {
   const e2e = msParts(m?.e2e_ms);
   return (
     <section className="p-section">
-      <div className="eyebrow">last response</div>
+      <SectionTitle icon={TimerReset}>last response</SectionTitle>
       <div className="meters">
         <Meter label="ttft" value={ttft.value} unit={ttft.unit} />
         <Meter
@@ -70,9 +91,10 @@ function LastResponse({ m }: { m: Metrics | null }) {
 
 function Execution({ m }: { m: Metrics | null }) {
   const sev = sevLabel(m?.sev_mode);
+  const inputMode = typeof m?.input_mode === "string" ? m.input_mode : null;
   return (
     <section className="p-section">
-      <div className="eyebrow">execution</div>
+      <SectionTitle icon={Cpu}>execution</SectionTitle>
       {sev ? (
         <>
           <div className="p-lede">{sev.label}</div>
@@ -84,6 +106,12 @@ function Execution({ m }: { m: Metrics | null }) {
         </div>
       )}
       <dl className="kv">
+        <dt>privacy</dt>
+        <dd className={inputMode ? "" : "na"}>
+          {inputMode === "e2e-sealed"
+            ? "end-to-end sealed"
+            : inputMode ?? DASH}
+        </dd>
         <dt>sev_mode</dt>
         <dd className={m?.sev_mode ? "" : "na"}>{m?.sev_mode ?? DASH}</dd>
         <dt>backend</dt>
@@ -97,18 +125,32 @@ function Attestation({
   att,
   error,
   loading,
+  verification,
+  verificationLoading,
   onRefetch,
 }: {
   att: AttestationDoc | null;
   error: string | null;
   loading: boolean;
+  verification: BrowserVerification | null;
+  verificationLoading: boolean;
   onRefetch: () => void;
 }) {
+  const summary = att
+    ? att.grade === "none"
+      ? "No TEE or hardware attestation."
+      : att.component === "claude-attested-proxy"
+        ? "This verifies the proxy only. Anthropic sees the prompt; Claude inference is not verified."
+        : att.execution?.mode === "snp-measured-dm-verity"
+          ? "AMD signed a measured launch. The approved dm-verity manifest fixes the guest code, runtimes, and model images."
+          : "AMD signed the VM launch. This does not prove which mutable guest code or weights ran."
+    : null;
   return (
     <section className="p-section">
       <div className="section-head">
-        <div className="eyebrow">attestation</div>
+        <SectionTitle icon={BadgeCheck}>attestation</SectionTitle>
         <button type="button" className="p-refetch" onClick={onRefetch}>
+          <RefreshCw size={12} aria-hidden="true" />
           refetch
         </button>
       </div>
@@ -138,7 +180,19 @@ function Attestation({
           </div>
           <dl className="kv">
             <dt>verification</dt>
-            <dd className="na">not performed in browser</dd>
+            <dd className={`verify-${verification?.status ?? "pending"}`}>
+              {verificationLoading
+                ? "checking in browser"
+                : verification?.status ?? "not available"}
+            </dd>
+            <dt>prompt key</dt>
+            <dd className={verification?.attestationTrusted ? "verify-verified" : "verify-pending"}>
+              {verificationLoading
+                ? "checking"
+                : verification?.attestationTrusted
+                  ? "trusted · browser sealing on"
+                  : "not trusted"}
+            </dd>
             <dt>grade</dt>
             <dd className={att.grade ? "" : "na"}>{att.grade ?? DASH}</dd>
             <dt>sev_mode</dt>
@@ -147,6 +201,8 @@ function Attestation({
             <dd>
               {att.binding_version != null ? `v${att.binding_version}` : DASH}
             </dd>
+            <dt>execution</dt>
+            <dd>{att.execution?.mode ?? "guest-declared"}</dd>
             <dt>registry</dt>
             <dd className="hash">{trunc(att.registry_hash)}</dd>
             <dt>report_data</dt>
@@ -162,7 +218,23 @@ function Attestation({
               {att.snp_report_b64 ? "present (b64)" : "none"}
             </dd>
           </dl>
-          {att.note && <div className="p-note">{att.note}</div>}
+          {verification && (
+            <details className="verify-details">
+              <summary>{verification.checks.length} independent checks</summary>
+              <dl className="verify-list">
+                {verification.checks.map((item) => (
+                  <div key={item.id} className={`verify-item ${item.status}`}>
+                    <dt>{item.status}</dt>
+                    <dd>
+                      <b>{item.label}</b>
+                      <span>{item.detail}</span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          )}
+          {summary && <div className="p-note">{summary}</div>}
         </>
       )}
     </section>
@@ -177,20 +249,25 @@ function ReceiptSection({
   registryHash: string | null;
 }) {
   const pda = receipt?.attestation_pda;
+  const receiptPda = receipt?.receipt_pda;
   return (
     <section className="p-section">
-      <div className="eyebrow">receipt</div>
+      <SectionTitle icon={ReceiptText}>receipt</SectionTitle>
       {receipt ? (
         <>
           <dl className="kv">
             <dt>id</dt>
             <dd className="hash">{receipt.receipt_id ?? DASH}</dd>
-            <dt>prompt</dt>
+            <dt>prompt hash</dt>
             <dd className="hash">{trunc(receipt.prompt_hash)}</dd>
-            <dt>response</dt>
+            <dt>response hash</dt>
             <dd className="hash">{trunc(receipt.response_hash)}</dd>
-            <dt>model</dt>
+            <dt>model hash</dt>
             <dd className="hash">{trunc(receipt.model_hash)}</dd>
+            <dt>on-chain receipt</dt>
+            <dd className={receipt.onchain_status === "confirmed" ? "" : "na"}>
+              {receipt.onchain_status ?? "not reported"}
+            </dd>
             <dt>signed</dt>
             <dd>
               {receipt.timestamp != null
@@ -205,6 +282,18 @@ function ReceiptSection({
             )}
           </dl>
           <div className="p-note">
+            {receiptPda && (
+              <>
+                <a
+                  href={explorerUrl(receiptPda)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  inference receipt PDA on Solana explorer (devnet)
+                </a>
+                <br />
+              </>
+            )}
             <a
               href={explorerUrl(pda ?? REGISTRY_PROGRAM)}
               target="_blank"
@@ -238,7 +327,7 @@ function Session({
     model.price_per_1m_out_usdc != null;
   return (
     <section className="p-section">
-      <div className="eyebrow">session</div>
+      <SectionTitle icon={WalletCards}>session</SectionTitle>
       <dl className="kv">
         <dt>requests</dt>
         <dd>{fmtInt(totals.requests)}</dd>
@@ -273,6 +362,8 @@ export function MeasurementPanel({
   attestation,
   attestationError,
   attestationLoading,
+  verification,
+  verificationLoading,
   onRefetchAttestation,
   totals,
   model,
@@ -283,6 +374,8 @@ export function MeasurementPanel({
   attestation: AttestationDoc | null;
   attestationError: string | null;
   attestationLoading: boolean;
+  verification: BrowserVerification | null;
+  verificationLoading: boolean;
   onRefetchAttestation: () => void;
   totals: SessionTotals;
   model: ModelInfo | null;
@@ -295,6 +388,8 @@ export function MeasurementPanel({
         att={attestation}
         error={attestationError}
         loading={attestationLoading}
+        verification={verification}
+        verificationLoading={verificationLoading}
         onRefetch={onRefetchAttestation}
       />
       <ReceiptSection receipt={receipt} registryHash={registryHash} />

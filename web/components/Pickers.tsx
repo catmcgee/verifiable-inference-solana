@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import type { ModelInfo } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
 import { LEGS } from "@/lib/labels";
@@ -7,24 +8,31 @@ import { LEGS } from "@/lib/labels";
 export function LegPicker({
   leg,
   onChange,
+  disabled = false,
 }: {
   leg: string;
   onChange: (leg: string) => void;
+  disabled?: boolean;
 }) {
+  const selectedRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [leg]);
   return (
-    <div className="leg-group" role="group" aria-label="Trust leg">
-      <span className="eyebrow">leg</span>
+    <div className="leg-group" role="group" aria-label="Inference trust model">
       {LEGS.map((l) => (
         <button
           key={l.id}
+          ref={leg === l.id ? selectedRef : undefined}
           type="button"
           className="leg-btn"
           aria-pressed={leg === l.id}
-          disabled={l.disabled}
+          aria-controls="leg-content"
           title={l.desc}
-          onClick={() => !l.disabled && onChange(l.id)}
+          disabled={disabled}
+          onClick={() => onChange(l.id)}
         >
-          {l.id}
+          {l.label}
         </button>
       ))}
     </div>
@@ -69,10 +77,15 @@ export function ModelPicker({
           key={m.id}
           type="button"
           className="model-chip"
+          data-model={m.id}
           aria-pressed={selected === m.id}
+          disabled={m.status !== "available"}
           onClick={() => onSelect(m.id)}
         >
-          <div className="model-chip-id">{m.id}</div>
+          <div className="model-chip-id">
+            <span className="model-dot" aria-hidden="true" />
+            {m.id}
+          </div>
           <div className="model-chip-sub">
             {m.quant ?? "—"} · {m.runtime ?? "—"} ·{" "}
             {m.price_per_1m_in_usdc != null && m.price_per_1m_out_usdc != null

@@ -17,6 +17,8 @@ from pathlib import Path
 
 import yaml
 
+from report.generate import discard_request_warmups
+
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "models.yaml"
 CONFIG = ROOT / "report" / "pricing-config.yaml"
@@ -24,14 +26,17 @@ CONFIG = ROOT / "report" / "pricing-config.yaml"
 
 def measured_tok_s(paths: list[Path]) -> dict[str, float]:
     by: dict[str, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
+    records = []
     for p in paths:
         for line in p.read_text().splitlines():
             if not line.strip():
                 continue
-            r = json.loads(line)
-            if r.get("leg") != "A" or r.get("concurrency") != 1:
-                continue
-            by[r["model"]][r.get("threads", 0)].append(r["tokens_per_s"])
+            records.append(json.loads(line))
+    retained, _ = discard_request_warmups(records)
+    for r in retained:
+        if r.get("leg") != "A" or r.get("concurrency") != 1:
+            continue
+        by[r["model"]][r.get("threads", 0)].append(r["tokens_per_s"])
     best: dict[str, float] = {}
     for model, threads in by.items():
         per_t = {t: statistics.median(v) for t, v in threads.items() if v}
@@ -58,7 +63,9 @@ def main(run_files: list[str]) -> None:
         e["price_per_1m_in_usdc"] = in_price
         changed.append((e["id"], ts, in_price, out_price))
     header = REGISTRY.read_text().split("\n\n")[0]  # keep leading comment block
-    REGISTRY.write_text(header + "\n\n" + yaml.dump(entries, sort_keys=False, allow_unicode=True))
+    REGISTRY.write_text(
+        header + "\n\n" + yaml.dump(entries, sort_keys=False, allow_unicode=True)
+    )
     for mid, ts, ip, op in changed:
         print(f"{mid:<12} {ts:>8.1f} tok/s -> in ${ip}/1M  out ${op}/1M")
     if not changed:
