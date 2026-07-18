@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "allowed_report_versions": [5],
+  "allowed_vmpl": [0],
+  "require_debug_disabled": true,
+  "amd_ark_der_sha256": {
+    "Turin": "1f084161a44bb6d93778a904877d4819cafa5d05ef4193b2ded9dd9c73dd3f6a"
+  },
+  "allowed_measurements": [
+    "3bf7e6c41d5d731f166964f995e696bf19cc682c2ed8a95084ed721f57b46b39ed640f3c4a476cf6b5d0317cd04f3aa1",
+    "7637fb0b5e46bcab8111cc634caf0e43faba4b61ec3d1ad7d8bd96a257097729447e6524439400142fa862fb0158b9b1",
+    "71ec6f24e6f251d5423161cf6487ad31fe495966d9595d63a73e7d27097bec404fa476febc50d7f02b70b242e5584d93"
+  ],
+  "allowed_server_build_hashes": [
+    "d73edc374f592f30603650f1bd14ef4caf557e63cb39d1e338fde2d1cfc69617",
+    "4068d9692e4e239885c3ef65daa51fc1b3a6e573330f86a3b0a94d358e0ccb84",
+    "4223a1f0f31ab1e53887e5f5c87d9b37805cc1859922bbbc9020af03a8117554",
+    "792357965bab3765dcd5cea084a4a1fb352d391ae8c89b11232f6fab4124351e",
+    "dc1b007fb6481a84758b8123fa232fce1047c4ed3a8421bff4b1d9fa9b7d70f0",
+    "57704037f2a49f27a49a8b683a00f7644e9759177eebb55217a7a37b9235a5e8",
+    "c9b9400103d841563d881c95f8367b5aec44282cd5cc8a13c46c2d8c1ce4cf21",
+    "64988a09eb78bac357f29272846d5f4e43d691c89b0c1d9638cd89aac200e5b1"
+  ],
+  "allowed_builds": [
+    {
+      "measurement": "3bf7e6c41d5d731f166964f995e696bf19cc682c2ed8a95084ed721f57b46b39ed640f3c4a476cf6b5d0317cd04f3aa1",
+      "server_build_hash": "d73edc374f592f30603650f1bd14ef4caf557e63cb39d1e338fde2d1cfc69617",
+      "execution_mode": "guest-declared"
+    },
+    {
+      "measurement": "3bf7e6c41d5d731f166964f995e696bf19cc682c2ed8a95084ed721f57b46b39ed640f3c4a476cf6b5d0317cd04f3aa1",
+      "server_build_hash": "4068d9692e4e239885c3ef65daa51fc1b3a6e573330f86a3b0a94d358e0ccb84",
+      "execution_mode": "guest-declared"
+    },
+    {
+      "measurement": "7637fb0b5e46bcab8111cc634caf0e43faba4b61ec3d1ad7d8bd96a257097729447e6524439400142fa862fb0158b9b1",
+      "server_build_hash": "dc1b007fb6481a84758b8123fa232fce1047c4ed3a8421bff4b1d9fa9b7d70f0",
+      "execution_mode": "guest-declared"
+    },
+    {
+      "measurement": "7637fb0b5e46bcab8111cc634caf0e43faba4b61ec3d1ad7d8bd96a257097729447e6524439400142fa862fb0158b9b1",
+      "server_build_hash": "57704037f2a49f27a49a8b683a00f7644e9759177eebb55217a7a37b9235a5e8",
+      "execution_mode": "guest-declared"
+    },
+    {
+      "measurement": "7637fb0b5e46bcab8111cc634caf0e43faba4b61ec3d1ad7d8bd96a257097729447e6524439400142fa862fb0158b9b1",
+      "server_build_hash": "64988a09eb78bac357f29272846d5f4e43d691c89b0c1d9638cd89aac200e5b1",
+      "execution_mode": "guest-declared"
+    },
+    {
+      "measurement": "71ec6f24e6f251d5423161cf6487ad31fe495966d9595d63a73e7d27097bec404fa476febc50d7f02b70b242e5584d93",
+      "server_build_hash": "c9b9400103d841563d881c95f8367b5aec44282cd5cc8a13c46c2d8c1ce4cf21",
+      "execution_mode": "snp-measured-dm-verity"
+    }
+  ],
+  "minimum_reported_tcb": {
+    "fmc": 0,
+    "bootloader": 1,
+    "tee": 0,
+    "snp": 2,
+    "microcode": 71
+  }
+}
