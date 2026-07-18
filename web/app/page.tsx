@@ -230,32 +230,27 @@ export default function Page() {
         role: message.role,
         content: message.content,
       }));
+      const appendDelta = (delta: string) => {
+        setMessages((prev) => prev.map((message, index) =>
+          index === prev.length - 1
+            ? { ...message, content: message.content + delta }
+            : message,
+        ));
+      };
       const resp = liveLeg === "B"
         ? await postChatE2E(
             model.id,
             requestMessages,
             maxTokens,
             attestation!,
-            (delta) => {
-              setMessages((prev) => prev.map((message, index) =>
-                index === prev.length - 1
-                  ? { ...message, content: message.content + delta }
-                  : message,
-              ));
-            },
+            appendDelta,
           )
         : await postChatStream(
             liveLeg,
             model.id,
             requestMessages,
             maxTokens,
-            (delta) => {
-              setMessages((prev) => prev.map((message, index) =>
-                index === prev.length - 1
-                  ? { ...message, content: message.content + delta }
-                  : message,
-              ));
-            },
+            appendDelta,
           );
       const metrics = resp.x_vinfer?.metrics ?? null;
       const receipt = resp.x_vinfer?.receipt ?? null;
