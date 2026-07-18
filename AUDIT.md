@@ -44,13 +44,13 @@ Bluntest findings first:
 8. **TLS is live and AWS is not used.** Caddy is the TLS reverse proxy on the
    Sunburst host; HTTP redirects to HTTPS and upstream listeners are loopback.
    No AWS SDK, service, credential, deployment, or account use was found.
-9. **No secret value was found in Git.** Gitleaks over full history returned
+9. **No secret value was found in Git.** Gitleaks over full rewritten history
     returned zero findings. A full directory scan found the expected ignored
     `.env.local` Anthropic credential plus six generated `.next/` cache false
     positives; neither is tracked. The local env file was tightened from mode
-    0644 to 0600 during the audit without reading or printing its value. Old
-    operational prose still contains a private-repository URL and SSH
-    fingerprint references; the owner authorized history rewriting.
+    0644 to 0600 during the audit without reading or printing its value. The
+    authorized history rewrite removed obsolete operational prose, the private
+    repository URL, and SSH fingerprints from all reachable commits.
 
 ### Post-audit remediation (2026-07-17)
 
@@ -83,14 +83,14 @@ Further remediation on 2026-07-18:
   shards, and cut the public API over only after all five runtimes passed.
 - Registered the final five-model SNP binding on devnet at PDA
   `GbJUCjVMnzFe85hkvuoeGsG5NZXWDH7G8kT1p9bfGDg5`.
-- `/measurements/` now resolves and exposes all 1,198 raw request measurements
-  plus all four session measurements; rendered navigation and leg filtering
-  pass in headless Chromium.
+- `/measurements/` exposed 1,198 raw request measurements at that stage. The
+  current deployed union contains 1,244 unique requests plus all four sessions;
+  rendered navigation and filtering pass in headless Chromium.
 - Live OpenAI testing passed eight JSON and one SSE completion with exact usage;
   an empty/EOS completion returned 200 instead of the previous intermittent 500.
 - No public paid gateway or provider listing was published. Mainnet wallet
-  configuration, live catalog probes, actual receipt transaction IDs, and the
-  no-refund conflict remain open.
+  configuration, paid-hostname catalog probes, and the no-refund conflict
+  remain open. The live authenticated origin now posts devnet receipts.
 
 ## Execution Evidence
 
@@ -106,7 +106,7 @@ Further remediation on 2026-07-18:
 | real report render | PASS: 952 retained requests, 4 sessions, 174,012-byte HTML with complete linked run provenance |
 | sparse synthetic report render | PASS after empty-chart fix; previously crashed at prompt 128 |
 | `vinfer verify /tmp/vinfer-080-e2e-receipt.json` | PASS: full live 0.8 chain, exact receipt index 0, no skips |
-| Gitleaks full-history scan | PASS: 0 findings |
+| Gitleaks full-history scan | PASS after authorized rewrite: 0 findings; removed paths/private URL/fingerprints absent from reachable history |
 | pay PAY.md validation | PASS with `pay catalog check --no-probe`; intentionally non-publishable placeholder URL |
 | runtime-YAML -> `pay skills provider sync` -> validator | PASS: generated from `models.yaml`; 4 endpoints walked |
 | official pay sandbox gateway | PASS: 402 + `PAYMENT-REQUIRED` -> x402 payment -> authenticated origin -> usage/receipt response |
@@ -196,13 +196,13 @@ Further remediation on 2026-07-18:
 | Input-only vs bidirectional truth | PASS | `/v1/infer_sealed` is input-only. `/v1/chat_e2e` seals chat history, streamed deltas, complete response, metrics, and usage. Baseline/Claude routes are explicitly TLS-only. |
 | On-chain plaintext/user identifiers | PASS | Anchor state and receipt construction use hashes only. No prompt, response, or user ID field. |
 | Application/model logging | PASS | Source and guest log scan found no prompt/message/content markers or key markers. Harness JSONL has schema-only metrics. |
-| Edge access logging | PARTIAL | Caddy logs had remote IP/User-Agent but no bodies/authorization. `eb77370` disabled new access logs and was deployed; old files remain because box deletion was forbidden. |
-| Full-history secret hygiene | PASS | Gitleaks 8.30.1: full Git history exit 0, 0 findings. Manual history grep found only variable/path references. `.gitignore` predates secret files. |
+| Edge access logging | PARTIAL | Caddy logs had remote IP/User-Agent but no bodies/authorization. `8b5d173` disabled new access logs and was deployed; old files remain because box deletion was forbidden. |
+| Full-history secret hygiene | PASS after rewrite | Gitleaks 8.30.1 found 0 findings. Searches found zero private-URL, SSH-fingerprint, or removed-path commits. `.gitignore` predates secret files. |
 | Ignored/generated worktree scan | PASS after fix | Full directory scan found one real credential only in ignored `.env.local` and six generic-key false positives only in ignored `.next/` build output. Neither is tracked; `.env.local` was changed from mode 0644 to 0600 without exposing its value. |
 | Anthropic secret source | PASS | Proxy reads `ANTHROPIC_API_KEY` from the ignored environment file; no tracked value. |
 | Leg C privacy honesty | PASS | Proxy only targets Anthropic; report/UI state Anthropic sees plaintext and inference is not verified. |
 | Tachyon code containment | PASS | No vendored source object in Git history. |
-| Tachyon information containment | PARTIAL pending authorized rewrite | HEAD is redacted and no source was vendored. Old history still contains a private-repository URL; rewrite is scheduled before finalization. |
+| Tachyon information containment | PASS after rewrite | No source was vendored. The authorized rewrite removed private-upstream notes and their URL from every reachable commit; only public, high-level product copy remains. |
 | External TLS | PASS | Caddy automatic TLS/HSTS; HTTP returns 308; upstream API and guest forwarding bind loopback. |
 | AWS use | PASS | None found. Caddy is a self-hosted web/TLS reverse proxy on Sunburst, not an AWS service. |
 
@@ -211,14 +211,14 @@ Further remediation on 2026-07-18:
 | Item | Status | Evidence |
 |---|---|---|
 | CLI infer/attest/verify/bench/receipts | PASS | Commands exist; full verify executed. Direct testing uses origin bearer auth; `vinfer pay` delegates payment to the official pay CLI. |
-| Web streaming chat and metrics | PASS | Production/static builds pass; model/leg picker, streamed text, TTFT/tok/s/cost/grade/receipt panels exist. |
+| Web streaming chat and metrics | PASS | Production/static builds pass; model/leg picker, streamed text, TTFT/tok/s/cost/grade/receipt panels exist. The deployed explanation distinguishes Caddy/TLS routing, loopback isolation, HPKE content privacy, operator SSH, and hash-only Solana data. |
 | Web measurement visibility | PASS after fix | Both route forms return 200; deployed JSON and UI expose 1,244 unique request rows, warmup status, every frozen field via row details, and all four sessions. |
 | Web verified pass/fail + tx link | PASS after fix | Browser independently verifies AMD chain/report, local policy, HPKE binding, registry PDA, receipt signature/content, and exact receipt PDA. Live Playwright observed `verified`, a trusted prompt key, `end-to-end sealed`, and a confirmed receipt link. |
 | Web zkML scope honesty | PASS after fix | Public chunk says verifier is a stub, no measurements, integrity not input privacy. |
 | Report required analyses | PARTIAL after fix | GLM baseline and the missing matched SNP comparison are explicit. Full mainnet economics, measured zkML ladder, Groth16-vs-hash, and sourced GPU projections remain absent. |
 | Report provenance links | PASS after fix | Every section footer contains the complete contributing run/session IDs linked to exact browser filters (`report/generate.py`). |
 | Report attestation costs | PARTIAL after fix | Positive phase samples report median/p99/n; zero sentinels are `not recorded`, not zero cost. Per-response post/confirm/CU/fees remain unmeasured. |
-| LEDGER substance | PARTIAL | Contains real command/results/decisions, but also stale contradictions and previous private-upstream detail in history. Not pure theater, not a reliable current-state source. |
+| LEDGER substance | PASS after rewrite | The replacement ledger records dated decisions, current deployments, test results, spend, and unresolved work only; stale operational history was removed. |
 | Mock-server harness pipeline | MISSING | Previous agent deleted the mock; Pass 2 could not run the required pipeline. Unit isolation tests and live server checks passed, but that is not the requested mock pipeline. |
 | Tiny add-model validation | MISSING | No tiny runtime/fixture or automated end-to-end flow; running against the live service would only fail unknown-model validation and perturb artifacts. |
 
@@ -227,8 +227,7 @@ Further remediation on 2026-07-18:
 - The SNP report proves a launch measurement and binds an ephemeral key to
   guest-declared digests. It does not currently measure the mutable root,
   Python source, runtime binaries, or every model shard.
-- Receipt hashes are commitments, not confidentiality against guessed prompts.
+- Receipt hashes do not reveal plaintext directly, but low-entropy content can
+  still be tested by guessing and hashing candidate values.
 - Current report economics combine historical ES cells and reduced SNP cells;
   they are not the complete authoritative experiment.
-- Historical Git blobs still contain private-upstream analysis and require an
-  explicit history-rewrite decision before public publication.

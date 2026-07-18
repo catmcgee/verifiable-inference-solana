@@ -6,13 +6,13 @@ Each safe fix was committed separately.
 
 | Commit | Fix | Verification |
 |---|---|---|
-| `16a7b52` | Updated stale Anchor test fixtures from removed `mock` grade to `noTee`. | Localnet 14/14 PASS. |
-| `ba2447f` | Changed browser copy to server-reported SNP, added "not performed in browser", and labeled leg D as unmeasured/stub/integrity-only. | Normal + static Next builds PASS; deployed chunk checked. |
-| `999bd30` | Corrected input-only HPKE wording, removed unsupported GPU numbers, added honest empty-leg-D and empty-chart behavior. | Real + sparse synthetic report renders PASS. |
-| `eb77370` | Added tracked TLS proxy config with access logging disabled. | Caddy validated/reloaded; log sizes unchanged after new requests. |
-| `62f2031` | Removed private-upstream implementation details from current public docs and corrected B200 deferral claims. | HEAD grep clean for the leaked internal terms; history caveat below. |
-| `715336c` | Replaced interactive `next lint` setup with a real noninteractive ESLint job. | `npm run lint` PASS. |
-| `0ccf621` | Pinned patched PostCSS 8.5.19. | `npm audit --audit-level=moderate`: 0 vulnerabilities. |
+| `01f29db` | Updated stale Anchor test fixtures from removed `mock` grade to `noTee`. | Localnet tests PASS. |
+| `309aa2e` | Changed browser copy to server-reported SNP, added "not performed in browser", and labeled leg D as unmeasured/stub/integrity-only. | Normal + static Next builds PASS; deployed chunk checked. |
+| `8133f88` | Corrected input-only HPKE wording, removed unsupported GPU numbers, added honest empty-leg-D and empty-chart behavior. | Real + sparse synthetic report renders PASS. |
+| `8b5d173` | Added tracked TLS proxy config with access logging disabled. | Caddy validated/reloaded; log sizes unchanged after new requests. |
+| `02434c5` | Removed private-upstream implementation details from public docs and corrected B200 deferral claims. | Rewritten history contains neither the removed notes nor the private URL. |
+| `46e01e4` | Replaced interactive `next lint` setup with a real noninteractive ESLint job. | `npm run lint` PASS. |
+| `de23935` | Pinned patched PostCSS 8.5.19. | `npm audit --audit-level=moderate`: 0 vulnerabilities. |
 
 Generated/deployed follow-through:
 
@@ -45,13 +45,21 @@ Generated/deployed follow-through:
   and states that the loaded browser bundle remains part of the trust base.
 - The deployed measurements view now contains 1,244 unique request rows plus
   four session rows.
+- Added and deployed a responsive request-path diagram explaining Caddy, the
+  loopback-only guest forward, browser-to-TEE privacy, operator-only SSH, and
+  hash-only Solana receipts. Desktop hover/focus and mobile layout checks pass.
+- Rewrote local Git history, as explicitly authorized, to remove obsolete
+  operational ledgers, plans, add-on notes, and private-upstream notes from all
+  reachable commits. Post-rewrite Gitleaks found zero leaks;
+  history searches found zero private-URL, SSH-fingerprint, or removed-path
+  commits. No remote was configured, so there was nothing to force-push.
 
 ## Post-Audit Remediation: Authenticated Testing and x402 Layer
 
 Applied on 2026-07-17:
 
-These changes share files with a large pre-existing dirty worktree. They were
-not committed, so unrelated prior-agent changes were not staged as this audit's
+These changes began in a pre-existing dirty worktree. They were tested and later
+captured in the consolidated runtime and web commits without reverting unrelated
 work.
 
 - Added a fail-closed origin auth layer with bearer access for the pay gateway
@@ -175,14 +183,7 @@ the remaining restart/re-attest/local-PDA steps against temporary state. The
 only user edit should be the registry entry; do not point this test at the
 public paid service.
 
-### B7: Private-history decision
-
-Commit `62f2031` removes private Tachyon implementation notes from HEAD, but old
-Git objects remain. Before making the repository public, the owner must decide
-whether to rewrite history and rotate published commit references. This audit
-did not rewrite or force-push history.
-
-### B8: Existing access-log retention
+### B7: Existing access-log retention
 
 New Caddy access logging is disabled. Existing files still contain client IP
 and User-Agent metadata. Deletion was prohibited during the box audit. Decide a
