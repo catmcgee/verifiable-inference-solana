@@ -8,7 +8,7 @@ PAY_NETWORK ?= localnet
 PAY_MAX_REQUEST_USD ?= 0.50
 OPERATOR ?= catmcgee
 
-.PHONY: bench pricing pay-runtime payskill pay-sandbox-test verify-registry migrate-jsonl curate report test help
+.PHONY: bench pricing pay-runtime payskill pay-sandbox-test verify-registry migrate-jsonl curate report test check solana-test help
 
 help:
 	@echo "make bench MODEL=<id>   # pricing subset of the matrix for one model (on box)"
@@ -20,6 +20,8 @@ help:
 	@echo "make migrate-jsonl      # fill legacy empty quant values from models.yaml"
 	@echo "make report             # curate raw runs + regenerate JSON/HTML reports"
 	@echo "make test               # Python policy, parser, harness, and x402 tests"
+	@echo "make check              # deterministic Python/web/generated-data quality gate"
+	@echo "make solana-test        # Anchor integration tests on a local validator"
 
 bench:
 	@test -n "$(MODEL)" || (echo "MODEL=<id> required"; exit 1)
@@ -60,3 +62,14 @@ report: curate
 
 test:
 	uv run python -m unittest discover -s tests -v
+
+check: test verify-registry
+	uv run python report/measurements_json.py
+	git diff --check
+	git diff --exit-code -- web/public/measurements.json
+	npm --prefix web run lint
+	npm --prefix web run build
+	npm --prefix solana run lint
+
+solana-test:
+	cd solana && anchor test
