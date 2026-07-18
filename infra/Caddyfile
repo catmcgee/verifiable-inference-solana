@@ -1,5 +1,7 @@
 verified-inference.213.239.141.40.sslip.io {
 	encode zstd gzip
+	@body_too_large header_regexp Content-Length ^[0-9]{7,}$
+	respond @body_too_large "request body too large" 413
 	request_body {
 		max_size 1MB
 	}
@@ -17,6 +19,8 @@ verified-inference.213.239.141.40.sslip.io {
 
 console.213.239.141.40.sslip.io {
 	encode zstd gzip
+	@body_too_large header_regexp Content-Length ^[0-9]{7,}$
+	respond @body_too_large "request body too large" 413
 	request_body {
 		max_size 1MB
 	}
