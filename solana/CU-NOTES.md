@@ -1,9 +1,9 @@
 # Compute-unit notes — verified_inference
 
-Localnet CU measurements from `anchor test` (the table below is rewritten by
-the test suite's `after()` hook on every green run). Devnet was subsequently
-measured: register_attestation 10,171 CU and post_receipt 13,580 CU. Preserve
-the local/devnet distinction when producing any future mainnet projection.
+Localnet CU measurements from `anchor test` (set `UPDATE_CU_NOTES=1` to rewrite
+the table below after a green run). Devnet was subsequently measured:
+register_attestation 10,171 CU and post_receipt 13,580 CU. Preserve the
+local/devnet distinction when producing any future mainnet projection.
 
 ## Measured CU (localnet)
 

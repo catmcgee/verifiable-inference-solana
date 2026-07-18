@@ -626,6 +626,8 @@ describe("verified_inference", () => {
       );
     }
 
+    if (process.env.UPDATE_CU_NOTES !== "1") return;
+
     // Refresh the measured table in solana/CU-NOTES.md between markers.
     const notesPath = path.join(__dirname, "..", "CU-NOTES.md");
     if (fs.existsSync(notesPath)) {
