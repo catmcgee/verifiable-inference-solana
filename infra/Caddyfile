@@ -1,5 +1,8 @@
 verified-inference.213.239.141.40.sslip.io {
 	encode zstd gzip
+	request_body {
+		max_size 1MB
+	}
 	reverse_proxy 127.0.0.1:8479 {
 		flush_interval -1
 	}
@@ -14,6 +17,9 @@ verified-inference.213.239.141.40.sslip.io {
 
 console.213.239.141.40.sslip.io {
 	encode zstd gzip
+	request_body {
+		max_size 1MB
+	}
 
 	handle_path /vinfer-a/* {
 		reverse_proxy 127.0.0.1:8481 {

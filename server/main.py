@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from server import access, registry, runtimes
 from server.attest.report import build_attestation
@@ -27,6 +27,12 @@ from server.execution import load_identity
 from server.receipts.request_hash import canonical_request
 from server.receipts.signer import EnclaveSigner
 from server.receipts.solana import attestation_pda
+from server.receipts.store import ReceiptStore
+from server.request_validation import (
+    MAX_CIPHERTEXT_CHARS,
+    MAX_MESSAGES,
+    validate_messages,
+)
 
 BACKEND = "llama"
 REGISTRY = registry.load()
@@ -41,7 +47,7 @@ def _registry_pairs() -> list[dict]:
     ]
 
 
-SERVER_BUILD = "vinfer-0.8.0"
+SERVER_BUILD = "vinfer-0.8.1"
 STATIC_REGISTRY_HASH = registry.pairs_hash(_registry_pairs())
 BUILD_IDENTITY = load_identity(SERVER_BUILD, STATIC_REGISTRY_HASH)
 SERVER_BUILD_HASH = BUILD_IDENTITY.build_hash
@@ -132,7 +138,7 @@ async def lifespan(app: FastAPI):
     from server.crypto.hpke_box import EnclaveHpkeKey
 
     app.state.hpke = EnclaveHpkeKey()
-    app.state.receipts = {}
+    app.state.receipts = ReceiptStore()
     configured = os.environ.get("VINFER_AVAILABLE_MODELS", "")
     candidates = (
         {item.strip() for item in configured.split(",") if item.strip()}
@@ -178,20 +184,22 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="verified-inference", version="0.8.0", lifespan=lifespan)
+app = FastAPI(title="verified-inference", version="0.8.1", lifespan=lifespan)
 
 
 class InferRequest(BaseModel):
-    model: str
-    prompt: str
+    model: str = Field(min_length=1, max_length=128)
+    prompt: str = Field(max_length=524_288)
     max_tokens: int = Field(default=64, ge=1, le=4096)
 
 
 class ChatRequest(BaseModel):
-    model: str
-    messages: list[dict]
+    model: str = Field(min_length=1, max_length=128)
+    messages: list[dict] = Field(min_length=1, max_length=MAX_MESSAGES)
     max_tokens: int = Field(default=256, ge=1, le=131072)
     stream: bool = False
+
+    _validate_messages = field_validator("messages")(validate_messages)
 
 
 class AuthSessionRequest(BaseModel):
@@ -287,9 +295,11 @@ async def auth_session_delete():
 
 
 class SealedInferRequest(BaseModel):
-    model: str
-    enc: str  # HPKE encapsulated key (base64)
-    ciphertext: str  # HPKE-sealed prompt (base64)
+    model: str = Field(min_length=1, max_length=128)
+    enc: str = Field(min_length=1, max_length=256)  # HPKE encapsulated key (base64)
+    ciphertext: str = Field(
+        min_length=1, max_length=MAX_CIPHERTEXT_CHARS
+    )  # HPKE-sealed prompt (base64)
     max_tokens: int = Field(default=64, ge=1, le=4096)
     stream: bool = False
 
@@ -442,7 +452,7 @@ async def _sign(
     text: str,
     model_id: str,
     metrics: dict,
-    receipts: dict,
+    receipts: ReceiptStore,
 ) -> dict:
     t0 = time.perf_counter()
     try:

@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from server import access, registry
 from server.attest.report import build_attestation, ensure_snp_report
@@ -27,12 +27,14 @@ from server.receipts.relay_client import post_receipt
 from server.receipts.request_hash import canonical_request
 from server.receipts.signer import EnclaveSigner
 from server.receipts.solana import attestation_pda
+from server.receipts.store import ReceiptStore
+from server.request_validation import MAX_MESSAGES, validate_messages
 
 
 UPSTREAM = "https://api.anthropic.com/v1/messages"
 CLAUDE_MODEL = os.environ.get("VINFER_C_MODEL", "claude-haiku-4-5-20251001")
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-PROXY_BUILD = "vinfer-legc-proxy-0.2.0"
+PROXY_BUILD = "vinfer-legc-proxy-0.2.1"
 MODEL_DECLARATION_HASH = hashlib.sha256(
     f"anthropic-upstream-model-id:{CLAUDE_MODEL}".encode()
 ).hexdigest()
@@ -49,10 +51,12 @@ PROXY_BUILD_HASH = BUILD_IDENTITY.build_hash
 
 
 class ChatRequest(BaseModel):
-    model: str
-    messages: list[dict]
+    model: str = Field(min_length=1, max_length=128)
+    messages: list[dict] = Field(min_length=1, max_length=MAX_MESSAGES)
     max_tokens: int = Field(default=256, ge=1, le=8192)
     stream: bool = False
+
+    _validate_messages = field_validator("messages")(validate_messages)
 
 
 class AuthSessionRequest(BaseModel):
@@ -93,7 +97,7 @@ async def lifespan(app: FastAPI):
     if not API_KEY:
         raise RuntimeError("ANTHROPIC_API_KEY is required")
     app.state.signer = EnclaveSigner()
-    app.state.receipts = {}
+    app.state.receipts = ReceiptStore()
     BUILD_IDENTITY.validate_registry(REGISTRY_HASH)
     binding = hashlib.sha256(
         base64.b64decode(app.state.signer.pubkey_b64) + REGISTRY_HASH + PROXY_BUILD_HASH
@@ -111,7 +115,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="vinfer-leg-c-proxy",
-    version="0.2.0",
+    version="0.2.1",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
