@@ -1506,11 +1506,13 @@ a:hover {
 
 .tee-deploy-stage > svg { color: var(--green); }
 
-.deploy-stage::after {
+.deploy-stage::after,
+.tee-stage::after {
   background: #181d31;
   border-radius: 6px;
   color: white;
   content: attr(data-tooltip);
+  font-family: var(--sans);
   font-size: 10px;
   left: 50%;
   line-height: 1.55;
@@ -1522,12 +1524,14 @@ a:hover {
   transform: translate(-50%, -4px);
   transition: opacity 140ms ease, transform 140ms ease;
   visibility: hidden;
-  width: min(250px, 86vw);
+  width: min(250px, 90vw);
   z-index: 20;
 }
 
 .deploy-stage:hover::after,
-.deploy-stage:focus::after {
+.deploy-stage:focus::after,
+.tee-stage:hover::after,
+.tee-stage:focus::after {
   opacity: 1;
   transform: translate(-50%, 0);
   visibility: visible;
@@ -1671,34 +1675,6 @@ a:hover {
 .tee-stage > svg { height: 24px; margin: 22px 0 12px; width: 24px; }
 .tee-stage > b { display: block; font-size: 13px; line-height: 1.35; }
 .tee-stage > p { color: var(--muted); font-size: 10px; line-height: 1.6; margin-top: 8px; }
-.tee-stage::after {
-  background: #181d31;
-  border-radius: 6px;
-  color: white;
-  content: attr(data-tooltip);
-  font-family: var(--sans);
-  font-size: 10px;
-  left: 50%;
-  line-height: 1.55;
-  opacity: 0;
-  padding: 10px 12px;
-  pointer-events: none;
-  position: absolute;
-  top: calc(100% + 8px);
-  transform: translate(-50%, -4px);
-  transition: opacity 140ms ease, transform 140ms ease;
-  visibility: hidden;
-  width: min(250px, 90vw);
-  z-index: 20;
-}
-
-.tee-stage:hover::after,
-.tee-stage:focus::after {
-  opacity: 1;
-  transform: translate(-50%, 0);
-  visibility: visible;
-}
-
 .sr-only {
   height: 1px;
   margin: -1px;
