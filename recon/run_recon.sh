@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# P1 recon gate (PLAN.md). Runs the checklist on the box via `ssh sunburst`
+# Recon gate. Runs the checklist on the box via `ssh sunburst`
 # (Host alias must exist in your ~/.ssh/config — see infra/ssh_config) and
 # captures raw output into recon/raw/. Read-only except for building STREAM
 # in /tmp on the box. Safe to re-run.

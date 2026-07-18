@@ -1,33 +1,33 @@
 no nvidia-smi (expected)
-00:01.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-00:02.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-00:03.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-00:04.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-00:05.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-00:07.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-20:01.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-20:02.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-40:01.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-40:02.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-40:03.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-40:04.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-40:05.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-40:07.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-60:01.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-60:02.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-80:01.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-80:02.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-a0:01.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-a0:02.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-a0:03.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-a0:04.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-a0:05.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-a0:07.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-c0:01.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-c0:02.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-e0:01.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-e0:02.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-e0:03.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-e0:04.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-e0:05.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
-e0:07.0 Host bridge: Advanced Micro Devices, Inc. [AMD] Device 153d
+00:01.0 Host bridge: AMD Device 153d
+00:02.0 Host bridge: AMD Device 153d
+00:03.0 Host bridge: AMD Device 153d
+00:04.0 Host bridge: AMD Device 153d
+00:05.0 Host bridge: AMD Device 153d
+00:07.0 Host bridge: AMD Device 153d
+20:01.0 Host bridge: AMD Device 153d
+20:02.0 Host bridge: AMD Device 153d
+40:01.0 Host bridge: AMD Device 153d
+40:02.0 Host bridge: AMD Device 153d
+40:03.0 Host bridge: AMD Device 153d
+40:04.0 Host bridge: AMD Device 153d
+40:05.0 Host bridge: AMD Device 153d
+40:07.0 Host bridge: AMD Device 153d
+60:01.0 Host bridge: AMD Device 153d
+60:02.0 Host bridge: AMD Device 153d
+80:01.0 Host bridge: AMD Device 153d
+80:02.0 Host bridge: AMD Device 153d
+a0:01.0 Host bridge: AMD Device 153d
+a0:02.0 Host bridge: AMD Device 153d
+a0:03.0 Host bridge: AMD Device 153d
+a0:04.0 Host bridge: AMD Device 153d
+a0:05.0 Host bridge: AMD Device 153d
+a0:07.0 Host bridge: AMD Device 153d
+c0:01.0 Host bridge: AMD Device 153d
+c0:02.0 Host bridge: AMD Device 153d
+e0:01.0 Host bridge: AMD Device 153d
+e0:02.0 Host bridge: AMD Device 153d
+e0:03.0 Host bridge: AMD Device 153d
+e0:04.0 Host bridge: AMD Device 153d
+e0:05.0 Host bridge: AMD Device 153d
+e0:07.0 Host bridge: AMD Device 153d

@@ -9,14 +9,16 @@ Access: `ssh sunburst` → 213.239.141.40, user `ubuntu`, Ubuntu 24.04 LTS
 > **and SEV-SNP are all enabled at the HOST**: CPU flags `sev sev_es sev_snp`,
 > `/dev/sev` present, `/sys/module/kvm_amd/parameters/sev_snp=Y`. `/dev/sev-guest`
 > is absent (this is the host, not a guest). Decision-table row achieved:
-> **Row 1 host-control** for launch, BUT the **SNP *guest* does not boot yet**
-> (upstream guest_memfd/APIC gap, see LEDGER session 6) — so **leg B runs on
-> SEV-ES, and its attestation grade is honestly `launch-only`** (no signed
-> runtime report). Any "SNP" claim about measured leg-B data is an overclaim.
+> **Row 1 host-control. SNP guests now boot** with the matched AMDSEV OVMF/QEMU
+> path, produce VMPL0 reports, and serve all four measured local models. The
+> current public boot is `grade=snp` and verifies report -> VCEK -> ASK/ARK;
+> exact cloned-disk plain/SNP inference results live in the final LEDGER entry.
+> The older SEV-ES data remains a distinct historical experiment and is still
+> labeled `launch-only`; it is not relabeled or pooled with the SNP twin.
 > STREAM both SEV states: SEV-off (plain VM) 346.19 GB/s vs SEV-ES 256.10 GB/s =
 > **26.0% bandwidth tax** (`runs/legAB-stream.jsonl`; the SEV-off-only baseline
 > below, 357.1 GB/s bare-metal 128t, is a separate anchor — do not pool them).
-> The original text below is kept for history; it is STALE as of session 3+.
+> The original text below is kept for history; it is STALE.
 
 ## (STALE, session-2) Headline: we got the BARE-METAL HOST, and SEV is disabled in BIOS
 
