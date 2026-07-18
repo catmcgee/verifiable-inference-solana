@@ -59,6 +59,10 @@ The current measurements are useful but do not cover the complete experiment
 matrix. See [FIXES.md](FIXES.md) for the remaining work and
 [AUDIT.md](AUDIT.md) for evidence behind the claims above.
 
+BitNet remains available because it is the 1.58-bit measurement anchor, but its
+published `i2_s` runtime produces unreliable chat answers in live checks. The
+browser therefore defaults to the more capable 8B Q4 model.
+
 ## Interfaces
 
 `models.yaml` is the single model registry. The canonical inference surface is

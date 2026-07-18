@@ -38,9 +38,13 @@ and sandbox payment cycle already pass.
 
 ## Maintenance
 
-1. Add a tiny real model fixture that automates the one-entry add-model flow,
+1. Persist the bounded hash-only receipt index so free receipt lookup survives
+   a server restart; do not persist prompt or response text.
+2. Add a tiny real model fixture that automates the one-entry add-model flow,
    including restart, re-attestation, and a temporary registry update.
-2. Set and enforce a retention/deletion policy for old Caddy metadata logs.
+3. Investigate the published BitNet `i2_s` runtime's unreliable answer quality.
+   Keep it as a measurement model and do not make it the chat default meanwhile.
+4. Set and enforce a retention/deletion policy for old Caddy metadata logs.
 
 ## Intentionally deferred
 
