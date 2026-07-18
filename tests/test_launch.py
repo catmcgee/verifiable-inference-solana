@@ -33,6 +33,29 @@ class RegistryLaunchTests(unittest.TestCase):
                 ):
                     registry.load(path)
 
+    def test_registry_rejects_malformed_model_fields(self):
+        original = yaml.safe_load(registry.REGISTRY_PATH.read_text())
+        cases = (
+            ("weights_sha256", 123, "invalid weights_sha256"),
+            ("quant", "", "invalid quant"),
+            ("port", True, "invalid port"),
+            ("ctx_max", True, "ctx_max"),
+            ("legs", ["A", "A"], "invalid legs"),
+            ("price_per_1m_in_usdc", True, "prices .* positive"),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "models.yaml"
+            for field, value, message in cases:
+                payload = [dict(entry) for entry in original]
+                payload[0][field] = value
+                path.write_text(yaml.safe_dump(payload, sort_keys=False))
+                with (
+                    self.subTest(field=field),
+                    self.assertRaisesRegex(ValueError, message),
+                ):
+                    registry.load(path)
+
     def test_launcher_consumes_registry_fields(self):
         models = registry.load()
         bitnet = launch_command(models["bitnet-2b"], threads=32, context_cap=16_384)

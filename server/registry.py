@@ -41,9 +41,10 @@ class ModelEntry:
 
     @property
     def weights_hash(self) -> bytes:
-        if not self.servable:
+        digest = self.weights_sha256
+        if digest is None:
             raise RuntimeError(f"model {self.id} is pending (no weights hash)")
-        return bytes.fromhex(self.weights_sha256)
+        return bytes.fromhex(digest)
 
 
 def load(path: Path = REGISTRY_PATH) -> dict[str, ModelEntry]:
@@ -67,24 +68,34 @@ def load(path: Path = REGISTRY_PATH) -> dict[str, ModelEntry]:
         if not isinstance(weights, str) or not Path(weights).is_absolute():
             raise ValueError(f"{path}: weights for {model_id} must be an absolute path")
         weights_sha256 = e.get("weights_sha256")
-        if weights_sha256 is not None and not re.fullmatch(
-            r"[0-9a-f]{64}", weights_sha256
+        if weights_sha256 is not None and (
+            not isinstance(weights_sha256, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", weights_sha256)
         ):
             raise ValueError(f"{path}: invalid weights_sha256 for {model_id}")
+        quant = e.get("quant")
+        if not isinstance(quant, str) or not quant:
+            raise ValueError(f"{path}: invalid quant for {model_id}")
         port = e.get("port")
-        if not isinstance(port, int) or not 1024 <= port <= 65535:
+        if type(port) is not int or not 1024 <= port <= 65535:
             raise ValueError(f"{path}: invalid port for {model_id}")
         if port in ports:
             raise ValueError(f"{path}: duplicate runtime port {port}")
         ports.add(port)
         ctx_max = e.get("ctx_max")
-        if not isinstance(ctx_max, int) or ctx_max <= 0:
+        if type(ctx_max) is not int or ctx_max <= 0:
             raise ValueError(f"{path}: ctx_max for {model_id} must be positive")
         chat_template = e.get("chat_template")
         if chat_template not in CHAT_TEMPLATES:
             raise ValueError(f"{path}: invalid chat_template for {model_id}")
         legs = e.get("legs")
-        if not isinstance(legs, list) or not legs or set(legs) - LEGS:
+        if (
+            not isinstance(legs, list)
+            or not legs
+            or any(not isinstance(leg, str) for leg in legs)
+            or len(set(legs)) != len(legs)
+            or set(legs) - LEGS
+        ):
             raise ValueError(f"{path}: invalid legs for {model_id}")
         prices = (e.get("price_per_1m_in_usdc"), e.get("price_per_1m_out_usdc"))
         if (prices[0] is None) != (prices[1] is None):
@@ -92,7 +103,8 @@ def load(path: Path = REGISTRY_PATH) -> dict[str, ModelEntry]:
                 f"{path}: both prices must be present or absent for {model_id}"
             )
         if any(
-            price is not None and (not isinstance(price, (int, float)) or price <= 0)
+            price is not None
+            and (type(price) not in (int, float) or not 0 < price < float("inf"))
             for price in prices
         ):
             raise ValueError(f"{path}: prices for {model_id} must be positive")
@@ -102,7 +114,7 @@ def load(path: Path = REGISTRY_PATH) -> dict[str, ModelEntry]:
             runtime=runtime,
             weights=weights,
             weights_sha256=weights_sha256,
-            quant=e["quant"],
+            quant=quant,
             ctx_max=ctx_max,
             chat_template=chat_template,
             legs=tuple(legs),
