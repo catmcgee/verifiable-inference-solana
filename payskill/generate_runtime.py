@@ -36,13 +36,12 @@ def runtime_spec(
     max_request_usd: float,
 ) -> dict:
     models = registry.load()
-    priced = [
-        model
-        for model in models.values()
-        if model.servable
-        and model.price_per_1m_in_usdc is not None
-        and model.price_per_1m_out_usdc is not None
-    ]
+    priced: list[tuple[registry.ModelEntry, float, float]] = []
+    for model in models.values():
+        input_price = model.price_per_1m_in_usdc
+        output_price = model.price_per_1m_out_usdc
+        if model.servable and input_price is not None and output_price is not None:
+            priced.append((model, input_price, output_price))
     if not priced:
         raise ValueError("models.yaml has no servable model with generated prices")
     if network not in {"localnet", "devnet", "mainnet"}:
@@ -51,19 +50,17 @@ def runtime_spec(
         raise ValueError("max_request_usd must be positive")
 
     variants = []
-    for model in priced:
+    for model, input_price, output_price in priced:
         variants.append(
             {
                 "param": "model",
                 "value": model.id,
                 "description": f"{model.id} measured registry pricing",
                 "dimensions": [
-                    _dimension(
-                        "input", model.price_per_1m_in_usdc, "/usage/prompt_tokens"
-                    ),
+                    _dimension("input", input_price, "/usage/prompt_tokens"),
                     _dimension(
                         "output",
-                        model.price_per_1m_out_usdc,
+                        output_price,
                         "/usage/completion_tokens",
                     ),
                 ],
@@ -73,8 +70,8 @@ def runtime_spec(
     # Top-level dimensions are a fail-closed pricing fallback for clients that
     # omit or misspell the body model. Use the highest rates in the registry;
     # the origin still rejects unknown models before inference.
-    fallback_in = max(model.price_per_1m_in_usdc for model in priced)
-    fallback_out = max(model.price_per_1m_out_usdc for model in priced)
+    fallback_in = max(input_price for _, input_price, _ in priced)
+    fallback_out = max(output_price for _, _, output_price in priced)
     return {
         "name": "verified-inference",
         "subdomain": "verified-inference",
