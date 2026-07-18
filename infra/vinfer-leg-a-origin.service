@@ -1,0 +1,27 @@
+[Unit]
+Description=verified-inference leg A bare-metal API origin
+After=network-online.target vinfer-leg-a-models.service vinfer-receipt-relay.service
+Requires=vinfer-leg-a-models.service
+Wants=network-online.target vinfer-receipt-relay.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/verified-inference
+Environment=VINFER_SEV_MODE=off
+Environment=VINFER_REQUIRE_AUTH=1
+Environment=VINFER_AUTH_COOKIE_PATH=/
+Environment=VINFER_AUTH_SECURE_COOKIE=1
+Environment=VINFER_AUTH_TOKEN_FILE=/home/ubuntu/.config/vinfer/origin-token
+Environment=VINFER_RECEIPT_RELAY_URL=http://127.0.0.1:8480
+Environment=VINFER_RECEIPT_RELAY_TOKEN_FILE=/home/ubuntu/.config/vinfer/receipt-relay-token
+Environment=VINFER_AVAILABLE_MODELS=bitnet-2b,8b-q4,8b-q8,70b-q4
+ExecStart=/bin/bash -c 'export VINFER_AUTH_TOKEN="$$(cat "$${VINFER_AUTH_TOKEN_FILE}")"; exec /home/ubuntu/verified-inference/.venv/bin/uvicorn server.main:app --host 127.0.0.1 --port 8481 --no-access-log'
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

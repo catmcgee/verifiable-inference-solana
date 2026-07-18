@@ -1,0 +1,165 @@
+# GENERATED from models.yaml by payskill/generate_runtime.py.
+# Do not edit prices here. Regenerate after report/pricing.py.
+name: verified-inference
+subdomain: verified-inference
+title: Verified Inference
+description: OpenAI-compatible CPU inference with AMD SEV-SNP attestation, live performance
+  metrics, and signed hash-only receipts.
+category: ai_ml
+version: v1
+routing:
+  type: proxy
+  url: https://verified-inference.213.239.141.40.sslip.io/
+  auth:
+    method: header
+    key: Authorization
+    prefix: 'Bearer '
+    value_from_env: VINFER_ORIGIN_TOKEN
+operator:
+  currencies:
+    usd:
+    - USDC
+  network: localnet
+  fee_payer: true
+endpoints:
+- method: GET
+  path: v1/models
+  description: List attested model registry entries and prices.
+- method: GET
+  path: v1/attestation
+  description: Fetch the current AMD SEV-SNP attestation document.
+- method: GET
+  path: v1/receipts/{receipt_id}
+  description: Fetch a signed hash-only inference receipt.
+- method: POST
+  path: v1/chat/completions
+  resource: chat-completions
+  description: Generate a non-streaming OpenAI-compatible completion (stream=false)
+    with live metrics and an SNP-key-signed receipt.
+  metering:
+    schemes:
+    - x402-upto
+    dimensions:
+    - direction: input
+      unit: tokens
+      scale: 1000000
+      tiers:
+      - price_usd: 26.4626
+      meter:
+        source: response_json
+        path: /usage/prompt_tokens
+    - direction: output
+      unit: tokens
+      scale: 1000000
+      tiers:
+      - price_usd: 105.8504
+      meter:
+        source: response_json
+        path: /usage/completion_tokens
+    variants:
+    - param: model
+      value: bitnet-2b
+      description: bitnet-2b measured registry pricing
+      dimensions:
+      - direction: input
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 3.3407
+        meter:
+          source: response_json
+          path: /usage/prompt_tokens
+      - direction: output
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 13.3629
+        meter:
+          source: response_json
+          path: /usage/completion_tokens
+    - param: model
+      value: 8b-q4
+      description: 8b-q4 measured registry pricing
+      dimensions:
+      - direction: input
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 5.0962
+        meter:
+          source: response_json
+          path: /usage/prompt_tokens
+      - direction: output
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 20.3847
+        meter:
+          source: response_json
+          path: /usage/completion_tokens
+    - param: model
+      value: 8b-q8
+      description: 8b-q8 measured registry pricing
+      dimensions:
+      - direction: input
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 6.3269
+        meter:
+          source: response_json
+          path: /usage/prompt_tokens
+      - direction: output
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 25.3074
+        meter:
+          source: response_json
+          path: /usage/completion_tokens
+    - param: model
+      value: 70b-q4
+      description: 70b-q4 measured registry pricing
+      dimensions:
+      - direction: input
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 26.4626
+        meter:
+          source: response_json
+          path: /usage/prompt_tokens
+      - direction: output
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 105.8504
+        meter:
+          source: response_json
+          path: /usage/completion_tokens
+    - param: model
+      value: glm-5.2-q4
+      description: glm-5.2-q4 measured registry pricing
+      dimensions:
+      - direction: input
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 21.9698
+        meter:
+          source: response_json
+          path: /usage/prompt_tokens
+      - direction: output
+        unit: tokens
+        scale: 1000000
+        tiers:
+        - price_usd: 87.8792
+        meter:
+          source: response_json
+          path: /usage/completion_tokens
+    upto:
+      max_usd: 0.5
+      missing_usage: error
+notes: Every successful paid completion includes an inference receipt ID and the server-reported
+  attestation grade. x402 authorizes a ceiling; the gateway settles observed token
+  usage and refunds the remainder.

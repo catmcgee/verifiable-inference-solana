@@ -1,0 +1,26 @@
+#!/bin/sh
+
+vinfer_cmdline_get() {
+  key=$1
+  for item in $(cat /proc/cmdline); do
+    case "$item" in
+      "$key"=*) printf '%s' "${item#*=}"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+vinfer_require_sha256() {
+  name=$1
+  value=$2
+  if [ "${#value}" -ne 64 ]; then
+    echo "$name must be exactly 64 hexadecimal characters" >&2
+    return 2
+  fi
+  case "$value" in
+    *[!0-9a-fA-F]*)
+      echo "$name must be exactly 64 hexadecimal characters" >&2
+      return 2
+      ;;
+  esac
+}

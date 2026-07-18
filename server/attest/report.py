@@ -6,14 +6,16 @@
   VINFER_SEV_MODE=sev|es         -> "launch-only" (server is inside a SEV/SEV-ES
                                      CVM: memory encrypted, but NO signed runtime
                                      report — a verifier learns only that SEV was
-                                     requested at launch, per PLAN.md)
+                                     requested by the launch policy)
   VINFER_SEV_MODE=snp + a real snpguest report at VINFER_SNP_REPORT
                                  -> "snp"         (signed runtime report present)
   VINFER_SEV_MODE=snp, no report -> "launch-only" (honest downgrade)
 
 REPORT_DATA binding (v2) = sha256(enclave_pubkey || registry_hash || build_hash),
 identical shape to the real SNP path so the verify pipeline is exercised end to
-end regardless of grade.
+end regardless of grade. The signed report hardware-binds these guest-provided
+values to an SNP launch measurement. With the current mutable guest disk it does
+not independently establish which userspace code or weight bytes executed.
 """
 
 from __future__ import annotations
@@ -28,21 +30,33 @@ def current_grade() -> tuple[str, str]:
     """Returns (grade, note) from the real environment. No faking, no mock."""
     sev = os.environ.get("VINFER_SEV_MODE", "off")
     if sev == "off":
-        return "none", ("No TEE: this process runs with plaintext memory (e.g. on "
-                        "bare metal). The receipt still binds model+I/O to the "
-                        "enclave key, but confidentiality is NOT provided — run the "
-                        "server inside a SEV CVM for that.")
+        return "none", (
+            "No TEE: this process runs with plaintext memory (e.g. on "
+            "bare metal). The receipt still binds model+I/O to the "
+            "enclave key, but confidentiality is NOT provided — run the "
+            "server inside a SEV CVM for that."
+        )
     if sev in ("sev", "es"):
-        return "launch-only", (f"SEV{'-ES' if sev == 'es' else ''}: guest memory is "
-                               "encrypted, but there is NO signed runtime report — a "
-                               "verifier learns only that SEV was requested at launch.")
+        return "launch-only", (
+            f"SEV{'-ES' if sev == 'es' else ''}: guest memory is "
+            "encrypted, but there is NO signed runtime report — a "
+            "verifier learns only that SEV was requested at launch."
+        )
     if sev == "snp":
         report = os.environ.get("VINFER_SNP_REPORT", "")
         if report and Path(report).exists():
-            return "snp", ("SEV-SNP: signed runtime attestation report present; "
-                           "verify report -> VCEK -> AMD KDS (ASK/ARK) chain.")
-        return "launch-only", ("SEV-SNP requested but no snpguest report is wired "
-                               "yet — honest downgrade to launch-only.")
+            return "snp", (
+                "SEV-SNP: signed VMPL0 runtime report present; verify "
+                "report -> VCEK -> AMD KDS (ASK/ARK) chain and local "
+                "policy. Report data binds the enclave key and "
+                "guest-declared registry/build digests; the mutable "
+                "guest root does not independently prove executed "
+                "userspace code or weights."
+            )
+        return "launch-only", (
+            "SEV-SNP requested but no snpguest report is wired "
+            "yet — honest downgrade to launch-only."
+        )
     return "none", f"unrecognized VINFER_SEV_MODE={sev!r}; treating as no TEE."
 
 
@@ -58,7 +72,10 @@ def ensure_snp_report(report_data: bytes) -> str | None:
     import subprocess
     import tempfile
 
-    if os.environ.get("VINFER_SEV_MODE") != "snp" or not Path("/dev/sev-guest").exists():
+    if (
+        os.environ.get("VINFER_SEV_MODE") != "snp"
+        or not Path("/dev/sev-guest").exists()
+    ):
         return None
     if len(report_data) != 32:
         raise ValueError("report_data must be 32 bytes")
@@ -68,13 +85,17 @@ def ensure_snp_report(report_data: bytes) -> str | None:
     request.write_bytes(report_data + b"\x00" * 32)  # 64-byte REPORT_DATA field
     try:
         subprocess.run(
-            ["snpguest", "report", str(report), str(request)],
-            check=True, capture_output=True, timeout=30,
+            ["snpguest", "report", "--vmpl", "0", str(report), str(request)],
+            check=True,
+            capture_output=True,
+            timeout=30,
         )
     except (subprocess.SubprocessError, FileNotFoundError) as e:
         import logging
+
         logging.getLogger("vinfer").warning(
-            "snpguest report failed (%s) — grade downgrades to launch-only", e)
+            "snpguest report failed (%s) — grade downgrades to launch-only", e
+        )
         return None
     os.environ["VINFER_SNP_REPORT"] = str(report)
     return str(report)
@@ -85,16 +106,43 @@ def build_attestation(
     registry_hash: bytes,
     server_build_hash: bytes,
     registry: list[dict] | None = None,
+    hpke_public_key_b64: str | None = None,
+    hpke_binding_signature_b64: str | None = None,
+    execution: dict | None = None,
 ) -> dict:
     grade, note = current_grade()
     report_data = hashlib.sha256(
         base64.b64decode(enclave_pubkey_b64) + registry_hash + server_build_hash
     ).digest()
     snp_report_b64 = None
+    snp_measurement = None
+    vcek_chain = None
     if grade == "snp":
-        snp_report_b64 = base64.b64encode(
-            Path(os.environ["VINFER_SNP_REPORT"]).read_bytes()
-        ).decode()
+        report = Path(os.environ["VINFER_SNP_REPORT"]).read_bytes()
+        snp_report_b64 = base64.b64encode(report).decode()
+        snp_measurement = report[0x90:0xC0].hex()
+        try:
+            from cli.kds import certificate_bundle
+
+            vcek_chain = certificate_bundle(report)
+        except Exception as exc:  # noqa: BLE001
+            import logging
+
+            logging.getLogger("vinfer").warning(
+                "AMD public certificate bundle unavailable (%s)", type(exc).__name__
+            )
+    if (
+        grade == "snp"
+        and execution
+        and execution.get("mode") == "snp-measured-dm-verity"
+    ):
+        note = (
+            "SEV-SNP: signed VMPL0 report present. The approved launch measurement "
+            "must pair with this execution-manifest hash; measured direct boot and "
+            "dm-verity then fix the root, server code, runtimes, and model images. "
+            "This establishes execution identity, not mathematical correctness of "
+            "the model output or resistance to all side channels."
+        )
     return {
         "grade": grade,
         "binding_version": 2,
@@ -104,8 +152,16 @@ def build_attestation(
         "registry": registry or [],
         "server_build_hash": server_build_hash.hex(),
         "sev_mode": os.environ.get("VINFER_SEV_MODE", "off"),
-        "snp_measurement": None,
+        "snp_measurement": snp_measurement,
         "snp_report_b64": snp_report_b64,
-        "vcek_chain": None,
+        "vcek_chain": vcek_chain,
+        "hpke_public_key_b64": hpke_public_key_b64,
+        "hpke_binding_signature_b64": hpke_binding_signature_b64,
+        "hpke_suite": (
+            "DHKEM(X25519,HKDF-SHA256)+HKDF-SHA256+ChaCha20Poly1305"
+            if hpke_public_key_b64
+            else None
+        ),
         "note": note,
+        "execution": execution or {"mode": "guest-declared", "manifest": None},
     }

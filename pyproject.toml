@@ -1,7 +1,7 @@
 [project]
 name = "verified-inference"
 version = "0.1.0"
-description = "TEE cost & trust measurement harness — mock-first, real backends land in P2"
+description = "TEE cost and trust measurement harness with real model runtimes"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

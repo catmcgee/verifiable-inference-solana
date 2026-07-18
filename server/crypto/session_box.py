@@ -41,24 +41,34 @@ def _aead_seal(key: bytes, plaintext: bytes, aad: bytes = b"") -> tuple[str, str
 
 def _aead_open(key: bytes, nonce_b64: str, ct_b64: str, aad: bytes = b"") -> bytes:
     return ChaCha20Poly1305(key).decrypt(
-        base64.b64decode(nonce_b64), base64.b64decode(ct_b64), aad)
+        base64.b64decode(nonce_b64), base64.b64decode(ct_b64), aad
+    )
 
 
 # ---- client side ----
-def client_open_session(enclave_pub_b64: str, prompt: bytes, aad: bytes = b"") -> tuple[dict, bytes]:
+def client_open_session(
+    enclave_pub_b64: str, prompt: bytes, aad: bytes = b""
+) -> tuple[dict, bytes]:
     """Returns (wire_dict_to_send, session_key). Call ONLY after verifying the
     attestation that vouched for enclave_pub_b64."""
     pub = KEMKey.from_pyca_cryptography_key(
-        X25519PublicKey.from_public_bytes(base64.b64decode(enclave_pub_b64)))
+        X25519PublicKey.from_public_bytes(base64.b64decode(enclave_pub_b64))
+    )
     enc, sctx = SUITE.create_sender_context(pub, info=INFO)
     session_key = sctx.export(SESSION_EXPORT_CTX, 32)
     sealed_prompt = sctx.seal(prompt, aad=aad)
-    return ({"enc": base64.b64encode(enc).decode(),
-             "ciphertext": base64.b64encode(sealed_prompt).decode()}, session_key)
+    return (
+        {
+            "enc": base64.b64encode(enc).decode(),
+            "ciphertext": base64.b64encode(sealed_prompt).decode(),
+        },
+        session_key,
+    )
 
 
-def client_open_response(session_key: bytes, resp_nonce_b64: str, sealed_response_b64: str,
-                         aad: bytes = b"") -> bytes:
+def client_open_response(
+    session_key: bytes, resp_nonce_b64: str, sealed_response_b64: str, aad: bytes = b""
+) -> bytes:
     return _aead_open(session_key, resp_nonce_b64, sealed_response_b64, aad)
 
 
@@ -69,7 +79,8 @@ class ServerSession:
 
     def __init__(self, enclave_hpke_key, enc_b64: str):
         self._rctx = SUITE.create_recipient_context(
-            base64.b64decode(enc_b64), enclave_hpke_key._key, info=INFO)
+            base64.b64decode(enc_b64), enclave_hpke_key._key, info=INFO
+        )
         self.session_key = self._rctx.export(SESSION_EXPORT_CTX, 32)
 
     def open_prompt(self, ciphertext_b64: str, aad: bytes = b"") -> bytes:

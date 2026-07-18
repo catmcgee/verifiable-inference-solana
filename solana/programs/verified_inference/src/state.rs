@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 /// What the on-chain registry entry can actually claim about the enclave.
-/// See PLAN.md "Attestation (leg B)": if recon says plain SEV (no SNP), the
+/// If recon finds plain SEV without SNP, the
 /// entry is LaunchOnly and the report documents what that does NOT prove.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
 pub enum AttestationGrade {
@@ -33,7 +33,7 @@ pub struct AttestationAccount {
     /// backward compat — v2 registrations may still fill it for a single model).
     pub model_weights_hash: [u8; 32],
     /// Attestation binding scheme: 1 = legacy single-model-hash binding,
-    /// 2 = registry-hash binding (see ADDON-REGISTRY.md Step 3).
+    /// 2 = registry-hash binding (see the attestation binding v2 verifier).
     pub binding_version: u8,
     /// v2 only: sha256 over sorted (model_id, weights_sha256) pairs of the
     /// model registry this enclave serves. Zeroed for v1 registrations.
@@ -92,6 +92,37 @@ pub struct ReceiptBatchAccount {
     pub bump: u8,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+pub enum ChannelStatus {
+    Open,
+    Closing,
+}
+
+/// Project-defined `vinfer-session-v1` SPL-token payment channel.
+/// PDA seeds: ["channel", payer, payee, channel_id]
+#[account]
+#[derive(InitSpace)]
+pub struct ChannelAccount {
+    pub payer: Pubkey,
+    pub payee: Pubkey,
+    pub mint: Pubkey,
+    pub vault: Pubkey,
+    pub authorized_signer: [u8; 32],
+    pub channel_id: [u8; 32],
+    /// Distinguishes a PDA reopened after a previous incarnation finalized.
+    pub opened_slot: u64,
+    pub deposit: u64,
+    /// Highest cumulative amount covered by a verified payer voucher.
+    pub authorized_cumulative: u64,
+    /// Amount the payee elects to settle, bounded by the signed authorization.
+    pub settled: u64,
+    pub close_requested_at: i64,
+    pub grace_seconds: u32,
+    pub status: ChannelStatus,
+    pub bump: u8,
+    pub vault_bump: u8,
+}
+
 /// Leg D (zkML) proof record.
 /// PDA seeds: ["proof", proof_hash]
 ///
@@ -103,7 +134,7 @@ pub struct ReceiptBatchAccount {
 pub struct ProofRecordAccount {
     pub proof_hash: [u8; 32],
     pub public_inputs_hash: [u8; 32],
-    /// Which rung of the zkML ladder this proof covers (1..=4, see PLAN.md).
+    /// Which rung of the zkML ladder this proof covers (1..=4).
     pub rung_id: u8,
     /// Always false in the stub. Set true only by real Groth16 verification.
     pub verified: bool,

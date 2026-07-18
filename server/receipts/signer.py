@@ -17,12 +17,18 @@ import uuid
 
 from nacl.signing import SigningKey, VerifyKey
 
+from server.receipts.request_hash import REQUEST_HASH_VERSION
+
+HPKE_BINDING_DOMAIN = b"vinfer-hpke-binding-v1\x00"
+
 
 def sha256(data: bytes) -> bytes:
     return hashlib.sha256(data).digest()
 
 
-def receipt_message(prompt_hash: bytes, response_hash: bytes, model_hash: bytes, timestamp: int) -> bytes:
+def receipt_message(
+    prompt_hash: bytes, response_hash: bytes, model_hash: bytes, timestamp: int
+) -> bytes:
     if not (len(prompt_hash) == len(response_hash) == len(model_hash) == 32):
         raise ValueError("hashes must be 32 bytes")
     return prompt_hash + response_hash + model_hash + struct.pack("<q", timestamp)
@@ -37,14 +43,19 @@ class EnclaveSigner:
     def pubkey_b64(self) -> str:
         return base64.b64encode(bytes(self._key.verify_key)).decode()
 
-    def sign_receipt(self, prompt: str, response: str, model_hash: bytes) -> dict:
+    def sign_receipt(
+        self, prompt: str | bytes, response: str | bytes, model_hash: bytes
+    ) -> dict:
         ts = int(time.time())
-        prompt_hash = sha256(prompt.encode())
-        response_hash = sha256(response.encode())
+        prompt_hash = sha256(prompt.encode() if isinstance(prompt, str) else prompt)
+        response_hash = sha256(
+            response.encode() if isinstance(response, str) else response
+        )
         msg = receipt_message(prompt_hash, response_hash, model_hash, ts)
         sig = self._key.sign(msg).signature
         return {
             "receipt_id": uuid.uuid4().hex[:16],
+            "request_hash_version": REQUEST_HASH_VERSION,
             "enclave_pubkey_b64": self.pubkey_b64,
             "prompt_hash": prompt_hash.hex(),
             "response_hash": response_hash.hex(),
@@ -52,6 +63,14 @@ class EnclaveSigner:
             "timestamp": ts,
             "sig_b64": base64.b64encode(sig).decode(),
         }
+
+    def sign_hpke_public_key(self, hpke_public_key_b64: str) -> str:
+        """Bind the boot HPKE key to this SNP-bound Ed25519 identity."""
+        hpke_public_key = base64.b64decode(hpke_public_key_b64, validate=True)
+        if len(hpke_public_key) != 32:
+            raise ValueError("HPKE X25519 public key must be 32 bytes")
+        signature = self._key.sign(HPKE_BINDING_DOMAIN + hpke_public_key).signature
+        return base64.b64encode(signature).decode()
 
 
 def verify_receipt(receipt: dict) -> bool:

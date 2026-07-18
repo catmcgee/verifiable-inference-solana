@@ -63,7 +63,13 @@ function receiptMessage(
 async function main() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const deployerPath = path.join(here, "..", ".devnet-deployer.json");
-  const idlPath = path.join(here, "..", "target", "idl", "verified_inference.json");
+  const idlPath = path.join(
+    here,
+    "..",
+    "target",
+    "idl",
+    "verified_inference.json"
+  );
 
   const deployer = Keypair.fromSecretKey(
     Uint8Array.from(JSON.parse(fs.readFileSync(deployerPath, "utf8")))
@@ -100,11 +106,17 @@ async function main() {
     console.log("enclave key: loaded persisted demo key");
   } else {
     enclave = nacl.sign.keyPair();
-    fs.writeFileSync(enclaveKeyPath, JSON.stringify(Array.from(enclave.secretKey)));
+    fs.writeFileSync(
+      enclaveKeyPath,
+      JSON.stringify(Array.from(enclave.secretKey))
+    );
     console.log("enclave key: generated + persisted", enclaveKeyPath);
   }
   const enclavePk = Buffer.from(enclave.publicKey); // 32 bytes
-  console.log("enclave ed25519 pubkey:", Buffer.from(enclavePk).toString("hex"));
+  console.log(
+    "enclave ed25519 pubkey:",
+    Buffer.from(enclavePk).toString("hex")
+  );
 
   // fixture hashes
   const modelHash = sha256(Buffer.from("bitnet-b1.58-2B4T-weights"));
@@ -117,7 +129,11 @@ async function main() {
   );
   // v2 REPORT_DATA binds the registry hash, not a single model hash.
   const reportDataHash = sha256(
-    Buffer.concat([enclavePk, registryHash, sha256(Buffer.from("server-build"))])
+    Buffer.concat([
+      enclavePk,
+      registryHash,
+      sha256(Buffer.from("server-build")),
+    ])
   );
 
   const [attestationPda] = PublicKey.findProgramAddressSync(
@@ -235,7 +251,10 @@ async function main() {
   console.log("program      :", EXPLORER("address", results.programId));
   console.log("attestation  :", EXPLORER("address", results.attestationPda));
   console.log("receipt[0]   :", EXPLORER("address", results.receiptPda));
-  console.log("register tx  :", EXPLORER("tx", results.registerAttestation.sig));
+  console.log(
+    "register tx  :",
+    EXPLORER("tx", results.registerAttestation.sig)
+  );
   console.log("receipt tx   :", EXPLORER("tx", results.postReceipt.sig));
   console.log("");
 
@@ -251,7 +270,9 @@ async function main() {
     response_hash: responseHash.toString("hex"),
     model_hash: modelHash.toString("hex"),
     timestamp: ts.toNumber(),
-    sig_b64: Buffer.from(nacl.sign.detached(msg, enclave.secretKey)).toString("base64"),
+    sig_b64: Buffer.from(nacl.sign.detached(msg, enclave.secretKey)).toString(
+      "base64"
+    ),
     attestation: {
       grade: "none", // NoTee — no hardware report; SNP row verifies as SKIPPED
       binding_version: 2,

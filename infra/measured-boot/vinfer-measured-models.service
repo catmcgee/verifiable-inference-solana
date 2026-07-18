@@ -1,0 +1,19 @@
+[Unit]
+Description=Immutable verified-inference model runtimes
+After=vinfer-model-images.service
+Requires=vinfer-model-images.service
+Before=vinfer-measured-origin.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/verified-inference
+ExecStart=/usr/local/sbin/vinfer-start-models
+KillMode=control-group
+TimeoutStartSec=3600
+TimeoutStopSec=60
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

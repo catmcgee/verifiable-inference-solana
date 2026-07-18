@@ -1,6 +1,6 @@
 """vinfer — infer / attest / verify / bench / receipts.
 
-Verification pipeline (PLAN.md): attestation → AMD KDS chain → key binding →
+Verification pipeline: attestation → AMD KDS chain → key binding →
 registry PDA → receipt sig → on-chain record. In P0 only the steps that can be
 real ARE real (ed25519 receipt sig, key binding); hardware/chain steps print
 SKIPPED with the reason rather than pretending.
@@ -12,6 +12,8 @@ import base64
 import hashlib
 import json
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -19,10 +21,16 @@ import click
 import httpx
 
 BASE_URL = os.environ.get("VINFER_URL", "http://127.0.0.1:8477")
+PAY_URL = os.environ.get("VINFER_PAY_URL", BASE_URL)
+
+
+def _auth_headers() -> dict[str, str]:
+    token = os.environ.get("VINFER_AUTH_TOKEN")
+    return {"authorization": f"Bearer {token}"} if token else {}
 
 
 def _get(path: str) -> dict:
-    r = httpx.get(f"{BASE_URL}{path}", timeout=60)
+    r = httpx.get(f"{BASE_URL}{path}", timeout=60, headers=_auth_headers())
     r.raise_for_status()
     return r.json()
 
@@ -36,16 +44,34 @@ def cli():
 @click.option("--model", required=True)
 @click.option("--prompt", required=True)
 @click.option("--max-tokens", default=64, show_default=True)
-@click.option("--receipt-out", type=click.Path(dir_okay=False), help="Write the signed receipt JSON here")
+@click.option(
+    "--receipt-out",
+    type=click.Path(dir_okay=False),
+    help="Write the signed receipt JSON here",
+)
 @click.option("--sealed", is_flag=True, help="HPKE encrypt-to-enclave (input only)")
-@click.option("--e2e", is_flag=True, help="Attestation-gated end-to-end sealed session (both directions)")
-@click.option("--insecure-allow-unattested", is_flag=True,
-              help="For --e2e: proceed even if the enclave is not hardware-attested (dev/SEV-ES)")
-def infer(model: str, prompt: str, max_tokens: int, receipt_out: str | None,
-          sealed: bool, e2e: bool, insecure_allow_unattested: bool):
+@click.option(
+    "--e2e",
+    is_flag=True,
+    help="Attestation-gated end-to-end sealed session (both directions)",
+)
+@click.option(
+    "--insecure-allow-unattested",
+    is_flag=True,
+    help="For --sealed/--e2e: accept a signed HPKE key without hardware attestation",
+)
+def infer(
+    model: str,
+    prompt: str,
+    max_tokens: int,
+    receipt_out: str | None,
+    sealed: bool,
+    e2e: bool,
+    insecure_allow_unattested: bool,
+):
     """Run one inference. --sealed encrypts the prompt to the enclave (input
-    only). --e2e VERIFIES the attestation first, then encrypts prompt AND
-    response under a session key bound to the attested enclave key."""
+    only). Both sealed modes verify the report and signed HPKE-key binding before
+    sending plaintext-derived ciphertext. --e2e also encrypts the response."""
     if e2e:
         from cli.attest_verify import verify_attestation
         from server.crypto.session_box import client_open_session, client_open_response
@@ -53,44 +79,80 @@ def infer(model: str, prompt: str, max_tokens: int, receipt_out: str | None,
         doc = _get("/v1/attestation")
         v = verify_attestation(doc, allow_unattested=insecure_allow_unattested)
         mark = "PASS" if v.trusted else "REFUSE"
-        click.echo(f"[attest {mark}] grade={v.grade} binding_ok={v.binding_ok} "
-                   f"kds_ok={v.kds_ok}", err=True)
+        click.echo(
+            f"[attest {mark}] grade={v.grade} binding_ok={v.binding_ok} "
+            f"kds_ok={v.kds_ok}",
+            err=True,
+        )
         click.echo(f"           {v.reason}", err=True)
         if not v.trusted:
             click.echo("aborting e2e session — enclave key not trusted.", err=True)
             sys.exit(2)
-        wire, session_key = client_open_session(doc["hpke_public_key_b64"], prompt.encode())
-        r = httpx.post(f"{BASE_URL}/v1/chat_e2e",
-                       json={"model": model, "enc": wire["enc"],
-                             "ciphertext": wire["ciphertext"], "max_tokens": max_tokens},
-                       timeout=600)
+        wire, session_key = client_open_session(
+            doc["hpke_public_key_b64"], prompt.encode()
+        )
+        r = httpx.post(
+            f"{BASE_URL}/v1/chat_e2e",
+            json={
+                "model": model,
+                "enc": wire["enc"],
+                "ciphertext": wire["ciphertext"],
+                "max_tokens": max_tokens,
+            },
+            headers=_auth_headers(),
+            timeout=600,
+        )
         r.raise_for_status()
         d = r.json()
-        text = client_open_response(session_key, d["resp_nonce"], d["sealed_response"]).decode()
-        metrics = json.loads(client_open_response(
-            session_key, d["sealed_metrics"]["resp_nonce"],
-            d["sealed_metrics"]["sealed_response"]).decode())
+        text = client_open_response(
+            session_key, d["resp_nonce"], d["sealed_response"]
+        ).decode()
+        metrics = json.loads(
+            client_open_response(
+                session_key,
+                d["sealed_metrics"]["resp_nonce"],
+                d["sealed_metrics"]["sealed_response"],
+            ).decode()
+        )
         click.echo(text)
-        click.echo(f"\n[{model}] e2e-sealed · {metrics['tokens_per_s']} tok/s · "
-                   f"decrypted client-side · receipt {d['receipt']['receipt_id']}", err=True)
+        click.echo(
+            f"\n[{model}] e2e-sealed · {metrics['tokens_per_s']} tok/s · "
+            f"decrypted client-side · receipt {d['receipt']['receipt_id']}",
+            err=True,
+        )
         if receipt_out:
             Path(receipt_out).parent.mkdir(parents=True, exist_ok=True)
             Path(receipt_out).write_text(json.dumps(d["receipt"], indent=2))
             click.echo(f"receipt → {receipt_out}", err=True)
         return
     if sealed:
+        from cli.attest_verify import verify_attestation
         from server.crypto.hpke_box import seal_to_enclave
 
-        pub = _get("/v1/attestation")["hpke_public_key_b64"]
-        box = seal_to_enclave(pub, prompt.encode())
-        r = httpx.post(f"{BASE_URL}/v1/infer_sealed",
-                       json={"model": model, "enc": box["enc"],
-                             "ciphertext": box["ciphertext"], "max_tokens": max_tokens},
-                       timeout=600)
+        doc = _get("/v1/attestation")
+        verdict = verify_attestation(doc, allow_unattested=insecure_allow_unattested)
+        if not verdict.trusted:
+            click.echo(f"refusing sealed request: {verdict.reason}", err=True)
+            sys.exit(2)
+        box = seal_to_enclave(doc["hpke_public_key_b64"], prompt.encode())
+        r = httpx.post(
+            f"{BASE_URL}/v1/infer_sealed",
+            json={
+                "model": model,
+                "enc": box["enc"],
+                "ciphertext": box["ciphertext"],
+                "max_tokens": max_tokens,
+            },
+            headers=_auth_headers(),
+            timeout=600,
+        )
     else:
-        r = httpx.post(f"{BASE_URL}/v1/infer",
-                       json={"model": model, "prompt": prompt, "max_tokens": max_tokens},
-                       timeout=600)
+        r = httpx.post(
+            f"{BASE_URL}/v1/infer",
+            json={"model": model, "prompt": prompt, "max_tokens": max_tokens},
+            headers=_auth_headers(),
+            timeout=600,
+        )
     r.raise_for_status()
     body = r.json()
     click.echo(body["text"])
@@ -124,11 +186,17 @@ def verify(receipt_file: str):
 
     receipt = json.loads(Path(receipt_file).read_text())
     failed = False
+    incomplete = False
+    skipped = False
 
     def step(name: str, status: str, detail: str = ""):
-        nonlocal failed
+        nonlocal failed, incomplete, skipped
         if status == "FAIL":
             failed = True
+        elif status == "ABSENT":
+            incomplete = True
+        elif status == "SKIPPED":
+            skipped = True
         click.echo(f"  [{status:^7}] {name}" + (f" — {detail}" if detail else ""))
 
     click.echo(f"verifying {receipt_file}")
@@ -138,7 +206,11 @@ def verify(receipt_file: str):
     # doc. Fall back to the live server for a freshly-minted receipt.
     att = receipt.get("attestation")
     if att:
-        step("attestation source", "PASS", "embedded in receipt (cross-checked on-chain below)")
+        step(
+            "attestation source",
+            "PASS",
+            "embedded in receipt (cross-checked on-chain below)",
+        )
     else:
         try:
             att = _get("/v1/attestation")
@@ -149,23 +221,41 @@ def verify(receipt_file: str):
 
     if att:
         if att["grade"] == "snp":
-            from cli.attest_verify import _verify_snp_report
+            from cli.attest_verify import _verify_snp_report, verify_attestation
 
             rep = att.get("snp_report_b64")
             if rep:
-                ok, why = _verify_snp_report(base64.b64decode(rep), att["report_data"])
-                step("SNP report → AMD KDS (VCEK/ASK/ARK) chain",
-                     "PASS" if ok else "FAIL",
-                     "hardware-signed report verified to AMD roots" if ok else why)
+                ok, why = _verify_snp_report(
+                    base64.b64decode(rep), att["report_data"], att
+                )
+                step(
+                    "SNP report → AMD KDS (VCEK/ASK/ARK) chain",
+                    "PASS" if ok else "FAIL",
+                    "hardware-signed report verified to AMD roots" if ok else why,
+                )
             else:
-                step("SNP report → AMD KDS chain", "FAIL", "grade=snp but no report in doc")
+                step(
+                    "SNP report → AMD KDS chain",
+                    "FAIL",
+                    "grade=snp but no report in doc",
+                )
+            verdict = verify_attestation(att, require_hpke=False)
+            step(
+                "execution identity + attestation policy",
+                "PASS" if verdict.trusted else "FAIL",
+                verdict.reason,
+            )
         else:
             step(
                 "SNP report → AMD KDS chain",
                 "SKIPPED",
                 f"attestation grade is '{att['grade']}' — no hardware report exists; a verifier can conclude nothing here",
             )
-        binding = "PASS" if att["enclave_pubkey_b64"] == receipt["enclave_pubkey_b64"] else "FAIL"
+        binding = (
+            "PASS"
+            if att["enclave_pubkey_b64"] == receipt["enclave_pubkey_b64"]
+            else "FAIL"
+        )
         step("enclave key binding (attestation ↔ receipt)", binding)
         bv = att.get("binding_version", 1)
         if bv == 2:
@@ -175,11 +265,15 @@ def verify(receipt_file: str):
             mid = bytes.fromhex(att["model_weights_hash"])
             label = "REPORT_DATA v1 = sha256(pubkey ‖ weights ‖ build)"
         expected = hashlib.sha256(
-            base64.b64decode(att["enclave_pubkey_b64"]) + mid
+            base64.b64decode(att["enclave_pubkey_b64"])
+            + mid
             + bytes.fromhex(att["server_build_hash"])
         ).hexdigest()
-        step(label, "PASS" if expected == att["report_data"] else "FAIL",
-             f"binding_version={bv}")
+        step(
+            label,
+            "PASS" if expected == att["report_data"] else "FAIL",
+            f"binding_version={bv}",
+        )
         if bv == 2:
             reg = {e["id"]: e["weights_sha256"] for e in att.get("registry", [])}
             in_reg = receipt["model_hash"] in reg.values()
@@ -193,33 +287,113 @@ def verify(receipt_file: str):
         enclave_raw = base64.b64decode(receipt["enclave_pubkey_b64"])
         chain = devnet.check_onchain(enclave_raw)
         if chain is None:
-            step("registry PDA lookup (Solana devnet)", "ABSENT",
-                 "this enclave key is not registered on-chain (register_attestation not run for it)")
+            step(
+                "registry PDA lookup (Solana devnet)",
+                "ABSENT",
+                "this enclave key is not registered on-chain (register_attestation not run for it)",
+            )
         else:
-            step("registry PDA lookup (Solana devnet)", "PASS",
-                 f"grade={chain['attestation_grade']} binding_v{chain['binding_version']} slot={chain['slot']}")
+            step(
+                "registry PDA lookup (Solana devnet)",
+                "PASS",
+                f"grade={chain['attestation_grade']} binding_v{chain['binding_version']} slot={chain['slot']}",
+            )
             if att:
+                metadata_match = (
+                    chain["enclave_pubkey"]
+                    == base64.b64decode(att["enclave_pubkey_b64"]).hex()
+                    and chain["attestation_grade"] == att.get("grade")
+                    and chain["binding_version"] == att.get("binding_version", 1)
+                    and chain["runtime_version"] == att.get("runtime_version")
+                )
+                step(
+                    "on-chain enclave grade/runtime/binding metadata",
+                    "PASS" if metadata_match else "FAIL",
+                )
                 rd_match = chain["report_data_hash"] == att.get("report_data")
-                step("on-chain REPORT_DATA == attestation report_data",
-                     "PASS" if rd_match else "FAIL",
-                     "the PDA independently anchors the enclave-key binding")
-            if att and att.get("binding_version", 1) == 2 and chain["binding_version"] == 2:
+                step(
+                    "on-chain REPORT_DATA == attestation report_data",
+                    "PASS" if rd_match else "FAIL",
+                    "the PDA independently anchors the enclave-key binding",
+                )
+                if att.get("grade") == "snp" and att.get("snp_report_b64"):
+                    report_measurement = base64.b64decode(att["snp_report_b64"])[
+                        0x90:0xC0
+                    ].hex()
+                    step(
+                        "on-chain measurement == signed SNP report",
+                        "PASS"
+                        if chain["snp_measurement"] == report_measurement
+                        else "FAIL",
+                    )
+            if (
+                att
+                and att.get("binding_version", 1) == 2
+                and chain["binding_version"] == 2
+            ):
                 match = chain["registry_hash"] == att.get("registry_hash")
-                step("on-chain registry_hash == served registry_hash",
-                     "PASS" if match else "FAIL")
+                step(
+                    "on-chain registry_hash == served registry_hash",
+                    "PASS" if match else "FAIL",
+                )
         step("receipt ed25519 signature", "PASS" if verify_receipt(receipt) else "FAIL")
         if chain is not None and chain["receipt_count"] > 0:
-            found = any(devnet.check_receipt(enclave_raw, i) for i in range(min(chain["receipt_count"], 8)))
-            step("on-chain receipt record", "PASS" if found else "FAIL",
-                 f"{chain['receipt_count']} receipt(s) registered for this enclave")
+            expected_receipt = {
+                "enclave_pubkey": enclave_raw.hex(),
+                "prompt_hash": receipt["prompt_hash"],
+                "response_hash": receipt["response_hash"],
+                "model_hash": receipt["model_hash"],
+                "timestamp": receipt["timestamp"],
+            }
+            matched_index = None
+            supplied_index = receipt.get("receipt_index")
+            if supplied_index is not None:
+                indexes = [int(supplied_index)]
+            elif chain["receipt_count"] > 10_000:
+                raise RuntimeError(
+                    "receipt index is not embedded and the enclave has more than "
+                    "10,000 receipts; re-export the receipt with on-chain index metadata"
+                )
+            else:
+                indexes = range(chain["receipt_count"])
+            for i in indexes:
+                posted = devnet.check_receipt(enclave_raw, i)
+                if posted and all(posted[k] == v for k, v in expected_receipt.items()):
+                    matched_index = i
+                    break
+            if matched_index is not None and receipt.get("receipt_pda"):
+                expected_pda = str(devnet.receipt_pda(enclave_raw, matched_index))
+                step(
+                    "receipt PDA address",
+                    "PASS" if receipt["receipt_pda"] == expected_pda else "FAIL",
+                )
+            step(
+                "exact receipt contents anchored on-chain",
+                "PASS" if matched_index is not None else "FAIL",
+                f"matched receipt index {matched_index}"
+                if matched_index is not None
+                else f"no match among {chain['receipt_count']} posted receipt(s)",
+            )
         else:
-            step("on-chain receipt record", "ABSENT", "no receipts posted for this enclave")
+            step(
+                "on-chain receipt record",
+                "ABSENT",
+                "no receipts posted for this enclave",
+            )
     except Exception as e:
         step("Solana devnet checks", "SKIPPED", f"rpc unavailable: {e}")
         step("receipt ed25519 signature", "PASS" if verify_receipt(receipt) else "FAIL")
 
-    click.echo("RESULT: " + ("FAIL" if failed else "OK (with skips as noted)"))
-    sys.exit(1 if failed else 0)
+    if failed:
+        result, exit_code = "FAIL", 1
+    elif incomplete:
+        result, exit_code = "INCOMPLETE (required on-chain evidence absent)", 2
+    elif skipped:
+        result, exit_code = "OK (with cryptographic skips as noted)", 0
+    else:
+        result, exit_code = "OK", 0
+    click.echo(f"RESULT: {result}")
+    sys.exit(exit_code)
 
 
 @cli.command()
@@ -242,78 +416,48 @@ def receipts(receipt_id: str):
 
 @cli.command()
 @click.option("--model", default="bitnet-2b", show_default=True)
-@click.option("--prompt", default="What is memory-bandwidth-bound inference?", show_default=True)
+@click.option(
+    "--prompt", default="What is memory-bandwidth-bound inference?", show_default=True
+)
 @click.option("--max-tokens", default=64, show_default=True)
-@click.option("--deposit-usdc", default=1.0, show_default=True, help="channel deposit to authorize")
-def pay(model: str, prompt: str, max_tokens: int, deposit_usdc: float):
-    """Exercise the x402 session-payment flow end to end (test client).
-
-    Runs: unpaid request → 402 challenge → open channel → sign a cumulative
-    voucher → paid metered request → prints the Payment-Receipt + settlement.
-    Uses a local ed25519 signer to stand in for the on-chain channel signer.
-    """
-    import base64 as b64
-    from nacl.signing import SigningKey
-    from server.x402.session import voucher_message
-
-    def _b58(raw: bytes) -> str:
-        try:
-            from solders.pubkey import Pubkey
-            return str(Pubkey.from_bytes(raw)) if len(raw) == 32 else b64.b64encode(raw).decode()
-        except Exception:
-            return b64.b64encode(raw).decode()
-
-    body = {"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens}
-
-    # 1. unpaid → expect 402 challenge
-    r = httpx.post(f"{BASE_URL}/v1/chat/completions", json=body, timeout=600)
-    if r.status_code != 402:
-        click.echo("server is not x402-gated (VINFER_X402!=1); response was "
-                   f"{r.status_code}. The free path works:", err=True)
-        click.echo(r.json().get("x_vinfer", {}).get("metrics", r.json()))
-        return
-    ch = r.json()["accepts"][0]
-    click.echo(f"402 challenge: {ch['scheme']} on {ch['network']}, quote "
-               f"{ch['amount']['quote_micro_usdc']} micro-USDC, asset {ch['assetSymbol']}")
-
-    # 2. open a channel (local signer stands in for the on-chain authorizedSigner)
-    signer = SigningKey.generate()
-    signer_pub = bytes(signer.verify_key)
-    channel_kp = SigningKey.generate()               # channel PDA stand-in (32 bytes)
-    channel_bytes = bytes(channel_kp.verify_key)
-    channel_b58 = _b58(channel_bytes)
-    deposit_micro = int(deposit_usdc * 1_000_000)
-
-    def auth_header(payload: dict) -> dict:
-        raw = b64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
-        return {"authorization": f"Payment {raw}"}
-
-    r = httpx.post(f"{BASE_URL}/v1/chat/completions", json=body, timeout=600,
-                   headers=auth_header({"action": "open", "channelId": channel_b58,
-                                        "authorizedSigner": _b58(signer_pub),
-                                        "deposit": deposit_micro}))
-    click.echo(f"open → {r.json().get('status', r.json())}")
-
-    # 3. sign a cumulative voucher covering the quote and send a paid request
-    cumulative = deposit_micro   # authorize the whole deposit
-    sig = signer.sign(voucher_message(channel_bytes, cumulative, 0)).signature
-    voucher = {"channelId": channel_b58, "cumulativeAmount": str(cumulative),
-               "expiresAt": 0, "signer": _b58(signer_pub),
-               "signature": b64.b64encode(sig).decode()}
-    r = httpx.post(f"{BASE_URL}/v1/chat/completions", json=body, timeout=600,
-                   headers=auth_header({"action": "voucher", "voucher": voucher}))
-    if r.status_code != 200:
-        click.echo(f"paid request failed [{r.status_code}]: {r.json()}", err=True)
-        sys.exit(1)
-    d = r.json()
-    click.echo("\n" + d["choices"][0]["message"]["content"])
-    m = d["x_vinfer"]["metrics"]
-    s = d["x_vinfer"]["settlement"]
-    click.echo(f"\n[{model}] {m['tokens_per_s']} tok/s · receipt {d['x_vinfer']['receipt']['receipt_id']}", err=True)
-    click.echo(f"Payment-Receipt: {r.headers.get('Payment-Receipt')}", err=True)
-    click.echo(f"settlement: quoted {s['quote_micro_usdc']} → charged "
-               f"{s['charged_micro_usdc']} (refunded {s['refunded_micro_usdc']}) micro-USDC; "
-               f"channel available {s['available_micro_usdc']}", err=True)
+@click.option("--sandbox", is_flag=True, help="Use pay's sandbox wallet; no real funds")
+def pay(model: str, prompt: str, max_tokens: int, sandbox: bool):
+    """Call the paid gateway through the official pay CLI."""
+    if shutil.which("pay") is None:
+        raise click.ClickException("pay CLI not found; install it from https://pay.sh")
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+    }
+    command = ["pay"]
+    if sandbox:
+        command.append("--sandbox")
+    command.extend(
+        [
+            "curl",
+            "-sS",
+            "-X",
+            "POST",
+            f"{PAY_URL}/v1/chat/completions",
+            "-H",
+            "content-type: application/json",
+            "--data",
+            json.dumps(body, separators=(",", ":")),
+        ]
+    )
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise click.ClickException(result.stderr.strip() or "paid request failed")
+    try:
+        response = json.loads(result.stdout)
+        click.echo(response["choices"][0]["message"]["content"])
+        proof = response.get("x_vinfer", {})
+        receipt_id = proof.get("receipt", {}).get("receipt_id", "missing")
+        grade = proof.get("attestation_grade", "missing")
+        click.echo(f"receipt {receipt_id} · attestation grade {grade}", err=True)
+    except (json.JSONDecodeError, KeyError, IndexError):
+        click.echo(result.stdout)
 
 
 if __name__ == "__main__":

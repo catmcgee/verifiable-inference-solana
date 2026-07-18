@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case "$1" in
+  prereqs) prereqs; exit 0 ;;
+esac
+
+. /scripts/functions
+
+root_hash=""
+for item in $(cat /proc/cmdline); do
+  case "$item" in
+    vinfer.root_hash=*) root_hash=${item#vinfer.root_hash=} ;;
+  esac
+done
+if [ "${#root_hash}" -ne 64 ]; then
+  panic "vinfer.root_hash must be exactly 64 hexadecimal characters"
+fi
+case "$root_hash" in
+  *[!0-9a-fA-F]*)
+    panic "vinfer.root_hash must be exactly 64 hexadecimal characters"
+    ;;
+esac
+
+modprobe dm_verity || panic "cannot load dm_verity"
+for device in /dev/vda /dev/vdb; do
+  count=0
+  while [ ! -b "$device" ] && [ "$count" -lt 300 ]; do
+    sleep 0.1
+    count=$((count + 1))
+  done
+  [ -b "$device" ] || panic "timed out waiting for $device"
+done
+
+veritysetup --panic-on-corruption open \
+  /dev/vda vinfer-root /dev/vdb "$root_hash" \
+  || panic "dm-verity rejected the immutable root"

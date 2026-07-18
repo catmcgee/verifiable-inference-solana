@@ -44,6 +44,10 @@ build/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+tmp/
+web/test-results/
+web/playwright-report/
+coverage/
 
 # Local-only run artifacts (real, curated runs are committed under runs/; no
 # synthetic/mock fixtures exist any more — "real only" per project deviation)

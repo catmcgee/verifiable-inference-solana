@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fetch GLM-5.2 GGUF to the NVMe and fill its models.yaml hash (run ON the box).
-# GLM-5.2 = Z.ai 744B-total/40B-active MoE; Unsloth dynamic GGUF, sharded (~450GB
+# GLM-5.2 = open-weight 744B-total/40B-active MoE; Unsloth dynamic GGUF, sharded (~450GB
 # at UD-Q4_K_XL). NVMe is 6.4TB so there's room. Waits for the leg-A sweep first.
 set -uo pipefail
 M="$HOME/models/GLM-5.2-UD-Q4_K_XL"

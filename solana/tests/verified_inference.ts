@@ -2,6 +2,7 @@ import * as anchor from "@anchor-lang/core";
 import { Program, BN } from "@anchor-lang/core";
 import {
   Ed25519Program,
+  LAMPORTS_PER_SOL,
   PublicKey,
   SYSVAR_INSTRUCTIONS_PUBKEY,
   Transaction,
@@ -39,7 +40,11 @@ function receiptMessage(
 
 /** merkle_root || num_receipts_le(u32) || timestamp_le(i64) — canonical
  *  44-byte batch message. */
-function batchMessage(root: Buffer, numReceipts: number, timestamp: BN): Buffer {
+function batchMessage(
+  root: Buffer,
+  numReceipts: number,
+  timestamp: BN
+): Buffer {
   const n = Buffer.alloc(4);
   n.writeUInt32LE(numReceipts);
   return Buffer.concat([root, n, timestamp.toArrayLike(Buffer, "le", 8)]);
@@ -77,6 +82,27 @@ describe("verified_inference", () => {
     .VerifiedInference as Program<VerifiedInference>;
   const connection = provider.connection;
 
+  before(async () => {
+    const endpoint = connection.rpcEndpoint;
+    if (!endpoint.includes("127.0.0.1") && !endpoint.includes("localhost")) {
+      throw new Error(
+        `tests require localnet; refusing RPC endpoint ${endpoint}`
+      );
+    }
+    const minimumBalance = 5 * LAMPORTS_PER_SOL;
+    if (
+      (await connection.getBalance(provider.wallet.publicKey)) >= minimumBalance
+    ) {
+      return;
+    }
+    const signature = await connection.requestAirdrop(
+      provider.wallet.publicKey,
+      10 * LAMPORTS_PER_SOL
+    );
+    const latest = await connection.getLatestBlockhash();
+    await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+  });
+
   // The "enclave" signing keypair — in production generated inside the CVM at
   // boot; here a real ed25519 keypair via tweetnacl.
   const enclave = nacl.sign.keyPair();
@@ -106,13 +132,17 @@ describe("verified_inference", () => {
   const modelHash = sha256(Buffer.from("bitnet-b1.58-2B4T-weights"));
   const snpMeasurement = Buffer.alloc(48, 7);
   // Binding v2: registry_hash = sha256 over sorted (model_id, weights_sha256)
-  // pairs (ADDON-REGISTRY.md Step 3). Single-model registry here.
+  // pairs used by attestation binding v2. Single-model registry here.
   const registryHash = sha256(
     Buffer.from(`bitnet-b1.58-2b4t:${modelHash.toString("hex")}`)
   );
   // v2 REPORT_DATA binds the registry hash, not a single model hash.
   const reportDataHash = sha256(
-    Buffer.concat([enclavePk, registryHash, sha256(Buffer.from("server-build"))])
+    Buffer.concat([
+      enclavePk,
+      registryHash,
+      sha256(Buffer.from("server-build")),
+    ])
   );
   const zeroRegistryHash = Buffer.alloc(32, 0);
 
@@ -168,6 +198,44 @@ describe("verified_inference", () => {
       })
       .accounts({ payer: provider.wallet.publicKey })
       .instruction();
+
+  it("exposes a hash-only receipt instruction and account schema", () => {
+    const idl = program.idl as any;
+    const instruction = idl.instructions.find(
+      (item: any) => item.name === "postReceipt"
+    );
+    expect(instruction.args.map((arg: any) => arg.name)).to.deep.equal([
+      "enclaveEd25519Pubkey",
+      "promptHash",
+      "responseHash",
+      "modelHash",
+      "timestamp",
+    ]);
+    for (const argument of instruction.args.slice(0, 4)) {
+      expect(argument.type).to.deep.equal({ array: ["u8", 32] });
+    }
+
+    const receipt = idl.types.find(
+      (item: any) => item.name === "receiptAccount"
+    );
+    const fields = receipt.type.fields.map((field: any) => field.name);
+    expect(fields).to.deep.equal([
+      "enclaveEd25519Pubkey",
+      "promptHash",
+      "responseHash",
+      "modelHash",
+      "timestamp",
+      "index",
+      "slot",
+      "bump",
+    ]);
+    expect(fields).not.to.include.members([
+      "prompt",
+      "response",
+      "messages",
+      "user",
+    ]);
+  });
 
   const postReceiptIx = (
     kp: nacl.SignKeyPair,
@@ -400,7 +468,10 @@ describe("verified_inference", () => {
       assert.fail("should have failed: invalid ed25519 signature");
     } catch (err: any) {
       // Rejected by the runtime before our program runs.
-      assert.match(err.toString(), /precompile|signature|SendTransactionError/i);
+      assert.match(
+        err.toString(),
+        /precompile|signature|SendTransactionError/i
+      );
     }
   });
 
@@ -533,7 +604,11 @@ describe("verified_inference", () => {
     if (cuLog.length === 0) return;
     console.log("\n  Compute units consumed (localnet):");
     for (const { label, cu, txBytes } of cuLog) {
-      console.log(`    ${label.padEnd(42)} ${String(cu).padStart(7)} CU  (tx msg ${txBytes} B)`);
+      console.log(
+        `    ${label.padEnd(42)} ${String(cu).padStart(
+          7
+        )} CU  (tx msg ${txBytes} B)`
+      );
     }
     const perReceiptBatch = cuLog.find((e) =>
       e.label.startsWith("post_receipt_batch")
@@ -541,7 +616,9 @@ describe("verified_inference", () => {
     const single = cuLog.find((e) => e.label.startsWith("post_receipt ("));
     if (perReceiptBatch && single) {
       console.log(
-        `    -> batched: ${(perReceiptBatch.cu / BATCH_N).toFixed(1)} CU per receipt ` +
+        `    -> batched: ${(perReceiptBatch.cu / BATCH_N).toFixed(
+          1
+        )} CU per receipt ` +
           `vs ${single.cu} CU single (${(
             single.cu /
             (perReceiptBatch.cu / BATCH_N)

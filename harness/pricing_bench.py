@@ -21,12 +21,16 @@ ROOT = Path(__file__).resolve().parents[1]
 def main(model_id: str) -> None:
     threads = int(os.environ.get("VINFER_BENCH_THREADS", "64"))
     matrix = {
-        "n_per_cell": 8,
+        "n_per_cell": 10,
         "grid": {
-            "leg": ["A"], "model": [model_id],
-            "prompt_tokens": [128], "output_tokens": [128],
-            "threads": [threads], "concurrency": [1],
-            "input_mode": ["tls"], "numa_policy": ["nps1-default"],
+            "leg": ["A"],
+            "model": [model_id],
+            "prompt_tokens": [128],
+            "output_tokens": [128],
+            "threads": [threads],
+            "concurrency": [1],
+            "input_mode": ["tls"],
+            "numa_policy": ["nps1-default"],
         },
     }
     out = ROOT / "runs" / "pricing" / f"{model_id}.jsonl"
@@ -36,7 +40,7 @@ def main(model_id: str) -> None:
         mpath = f.name
     summary = run(mpath, str(out))
     print(json.dumps(summary, indent=2))
-    print(f"next: uv run python report/pricing.py {out}")
+    print(f"next: make pricing MODEL={model_id}")
 
 
 if __name__ == "__main__":

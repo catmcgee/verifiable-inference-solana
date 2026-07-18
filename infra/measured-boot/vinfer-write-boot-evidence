@@ -1,0 +1,37 @@
+#!/bin/sh
+set -eu
+. /usr/local/lib/vinfer-cmdline
+
+kernel=$(vinfer_cmdline_get vinfer.kernel_sha256)
+initrd=$(vinfer_cmdline_get vinfer.initrd_sha256)
+root=$(vinfer_cmdline_get vinfer.root_hash)
+models=$(vinfer_cmdline_get vinfer.models_hash)
+glm=$(vinfer_cmdline_get vinfer.glm_hash)
+for pair in kernel:$kernel initrd:$initrd root:$root models:$models glm:$glm; do
+  vinfer_require_sha256 "${pair%%:*}" "${pair#*:}"
+done
+cmdline=$(cat /proc/cmdline)
+cmdline_hash=$(printf '%s' "$cmdline" | sha256sum | awk '{print $1}')
+
+install -d -o ubuntu -g ubuntu -m 0750 /run/vinfer
+install -d -o ubuntu -g ubuntu -m 0750 /run/vinfer/cache /run/vinfer/model-logs
+python3 - "$kernel" "$initrd" "$cmdline_hash" "$root" "$models" "$glm" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+kernel, initrd, cmdline, root, models, glm = sys.argv[1:]
+document = {
+    "kernel_sha256": kernel,
+    "initrd_sha256": initrd,
+    "cmdline_sha256": cmdline,
+    "root_verity_hash": root,
+    "model_verity_hashes": {"glm": glm, "models": models},
+}
+target = Path("/run/vinfer/boot-evidence.json")
+temporary = target.with_suffix(".tmp")
+temporary.write_text(json.dumps(document, sort_keys=True, separators=(",", ":")))
+os.chmod(temporary, 0o444)
+os.replace(temporary, target)
+PY

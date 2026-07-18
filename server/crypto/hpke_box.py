@@ -1,8 +1,8 @@
-"""HPKE encrypt-to-enclave input mode (PLAN.md input_mode=hpke).
+"""HPKE encrypt-to-enclave input mode (frozen schema input_mode=hpke).
 
 The enclave holds an X25519 HPKE keypair generated at boot alongside its ed25519
-signing key. A client fetches the enclave's HPKE public key from /v1/attestation
-(bound to the attested ed25519 key + registry via REPORT_DATA in the SNP case),
+signing key. A client fetches the enclave's HPKE public key from /v1/attestation;
+the SNP-bound Ed25519 key signs it with a domain-separated binding signature,
 encrypts the prompt to it, and the server decrypts *inside* the enclave — so the
 proxy/operator on the TLS-terminating path never sees plaintext.
 
@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import base64
 
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.x25519 import (
+    X25519PrivateKey,
+    X25519PublicKey,
+)
 from pyhpke import AEADId, CipherSuite, KDFId, KEMId, KEMKey
 
 SUITE = CipherSuite.new(
@@ -50,5 +53,7 @@ def seal_to_enclave(enclave_pub_b64: str, plaintext: bytes, aad: bytes = b"") ->
     )
     enc, sender = SUITE.create_sender_context(pub, info=INFO)
     ct = sender.seal(plaintext, aad=aad)
-    return {"enc": base64.b64encode(enc).decode(),
-            "ciphertext": base64.b64encode(ct).decode()}
+    return {
+        "enc": base64.b64encode(enc).decode(),
+        "ciphertext": base64.b64encode(ct).decode(),
+    }

@@ -1,0 +1,24 @@
+[Unit]
+Description=verified-inference hash-only Solana receipt relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/verified-inference
+Environment=VINFER_SOLANA_PAYER=/home/ubuntu/verified-inference/solana/.devnet-deployer.json
+Environment=VINFER_SOLANA_RPC=https://api.devnet.solana.com
+Environment=VINFER_RECEIPT_RELAY_TOKEN_FILE=/home/ubuntu/.config/vinfer/receipt-relay-token
+ExecStart=/home/ubuntu/verified-inference/.venv/bin/uvicorn server.receipts.relay:app --host 127.0.0.1 --port 8480
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/.cache
+
+[Install]
+WantedBy=multi-user.target

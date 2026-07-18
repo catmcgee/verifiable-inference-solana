@@ -1,0 +1,33 @@
+[Unit]
+Description=Immutable measured verified-inference SNP origin
+After=network-online.target vinfer-measured-models.service
+Wants=network-online.target
+Requires=vinfer-measured-models.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/verified-inference
+Environment=VINFER_SEV_MODE=snp
+Environment=VINFER_REQUIRE_AUTH=1
+Environment=VINFER_AUTH_COOKIE_PATH=/
+Environment=VINFER_AUTH_SECURE_COOKIE=1
+Environment=VINFER_RECEIPT_RELAY_URL=http://10.0.2.2:8480
+Environment=VINFER_RECEIPT_RELAY_TOKEN_FILE=/home/ubuntu/.config/vinfer/receipt-relay-token
+Environment=VINFER_BOOT_EVIDENCE=/run/vinfer/boot-evidence.json
+Environment=XDG_CACHE_HOME=/run/vinfer/cache
+PermissionsStartOnly=true
+ExecStartPre=+/bin/chgrp ubuntu /dev/sev-guest
+ExecStartPre=+/bin/chmod 0660 /dev/sev-guest
+ExecStart=/usr/local/sbin/vinfer-start-origin
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/run/vinfer
+
+[Install]
+WantedBy=multi-user.target

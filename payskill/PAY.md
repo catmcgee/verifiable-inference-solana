@@ -1,36 +1,80 @@
 ---
-name: inference
-title: "Verified Inference"
-description: "Attested LLM inference on bare-metal AMD EPYC SEV TEE. Pay-per-token via x402 session channels; every paid response returns an on-chain receipt and attestation grade. OpenAI-compatible chat for BitNet, Llama-3.1-8B, Llama-3.3-70B, GLM-5.2."
-use_case: "Use when you need LLM chat completions with a cryptographic, on-chain-verifiable receipt binding the exact model and I/O hashes to a hardware-attested enclave — proof of which model produced a response, not just the response."
 category: ai_ml
-service_url: https://verified-inference.solana.org
-openapi:
-  url: https://verified-inference.solana.org/openapi.json
+description: OpenAI-compatible CPU inference with AMD SEV-SNP attestation, live performance
+  metrics, and signed hash-only receipts.
+endpoints:
+- description: List attested model registry entries and prices.
+  method: GET
+  path: v1/models
+- description: Fetch the current AMD SEV-SNP attestation document.
+  method: GET
+  path: v1/attestation
+- description: Fetch a signed hash-only inference receipt.
+  method: GET
+  path: v1/receipts/{receipt_id}
+- description: Generate a non-streaming OpenAI-compatible completion (stream=false)
+    with live metrics and an SNP-key-signed receipt.
+  method: POST
+  path: v1/chat/completions
+  pricing:
+    dimensions:
+    - direction: input
+      meter:
+        path: /usage/prompt_tokens
+        source: response_json
+      scale: 1000000
+      tiers:
+      - price_usd: 26.4626
+      unit: tokens
+    - direction: output
+      meter:
+        path: /usage/completion_tokens
+        source: response_json
+      scale: 1000000
+      tiers:
+      - price_usd: 105.8504
+      unit: tokens
+  resource: chat-completions
+name: inference
+service_url: https://pay.example.invalid
+title: Verified Inference
+version: v1
+use_case: Use for paid OpenAI-compatible CPU inference when live performance metrics
+  and an AMD SEV-SNP-bound signed receipt are required.
 ---
 
-OpenAI-compatible chat completions where **every paid response carries an on-chain receipt ID and an attestation grade** — attested inference, not just inference. Runs on bare-metal AMD EPYC Turin under AMD SEV memory encryption; the attestation binds the enclave signing key and the exact served model set (registry hash).
+> **DEVELOPMENT ARTIFACT. DO NOT PUBLISH UNTIL MAINNET AND LIVE PROBES PASS.**
 
-## Payment
+OpenAI-compatible chat completion on the measured AMD CPU service. Successful
+responses include live latency/throughput metrics, an SNP-key-signed hash-only
+receipt ID, and the server-reported attestation grade.
 
-x402 USDC on Solana via the **session intent** ([draft-solana-session-00](https://paymentauth.org/draft-solana-session-00.html)): open a channel once (on-chain escrow), then sign cumulative-amount vouchers off-chain and pay per token. Billed on actual streamed tokens; the upfront quote is reconciled and the unused portion refunded to channel balance. Two on-chain transactions per session (open, close).
+The x402 gateway authorizes a per-request ceiling, forwards only after payment
+verification, reads the final OpenAI usage object, settles measured input and
+output token cost, and refunds the unused ceiling. Calls that do not return
+valid usage fail settlement rather than guessing a charge.
 
-Prices are derived from measured throughput on the host and charged per token:
+Paid calls currently require `stream: false`: settlement meters the final JSON
+`usage` object. The separately authenticated browser console supports SSE.
 
-| model | quant | price |
-|---|---|---|
-| `bitnet-2b` | i2_s | $3.0636/1M in · $12.2544/1M out |
-| `8b-q4` | Q4_K_M | $4.8166/1M in · $19.2665/1M out |
-| `8b-q8` | Q8_0 | $6.0296/1M in · $24.1183/1M out |
-| `70b-q4` | Q4_K_M | $24.0689/1M in · $96.2757/1M out |
-| `glm-5.2-q4` | UD-Q4_K_XL | $21.9698/1M in · $87.8792/1M out |
+| model | USDC / 1M input tokens | USDC / 1M output tokens |
+|---|---:|---:|
+| `bitnet-2b` | $3.3407 | $13.3629 |
+| `8b-q4` | $5.0962 | $20.3847 |
+| `8b-q8` | $6.3269 | $25.3074 |
+| `70b-q4` | $26.4626 | $105.85 |
+| `glm-5.2-q4` | $21.9698 | $87.8792 |
 
-## Endpoints
+The frontmatter's endpoint price is the conservative unknown-model fallback.
+The live x402 challenge and settlement use the matching model variant above.
 
-- `POST /v1/chat/completions` — paid (x402 session). OpenAI-shaped; the `x_vinfer` field carries live metrics, the signed receipt, and settlement.
-- `POST /v1/infer_sealed` — paid. HPKE-encrypted prompt (encrypt-to-enclave); the operator on the TLS path never sees plaintext.
-- `GET /v1/models` — free. Models, measured stats, prices, attestation status.
-- `GET /v1/attestation` — free. Enclave key, binding version, registry hash, HPKE public key.
-- `GET /v1/receipts/{id}` — free. Fetch a signed receipt.
+The SNP report binds the guest signing key, complete hash-bearing registry
+digest, and build identifier. Runtime availability is reported separately.
+The current mutable guest root means this does not independently
+prove which Python code or model weights executed. Leg C is not exposed here.
+Leg D verification remains a stub and is not offered as a paid endpoint.
 
-Verify any receipt end to end (attestation → AMD KDS chain → enclave key → registry PDA → receipt signature → on-chain record) with the `vinfer verify` CLI.
+Use `vinfer verify <receipt.json>` for the SNP/KDS, key-binding, registry, and
+signature checks. Exact inference-receipt PDA verification is available only
+for receipts whose `onchain_status` is `confirmed`; current paid responses say
+`not-posted`. Anthropic is not called by this route.

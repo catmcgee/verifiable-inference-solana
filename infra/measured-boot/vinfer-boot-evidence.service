@@ -1,0 +1,13 @@
+[Unit]
+Description=Construct measured boot evidence from the SNP-measured command line
+DefaultDependencies=no
+After=local-fs.target
+Before=network-pre.target vinfer-model-images.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vinfer-write-boot-evidence
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

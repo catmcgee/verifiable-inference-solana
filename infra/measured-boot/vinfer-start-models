@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+. /usr/local/lib/vinfer-cmdline
+
+models=$(vinfer_cmdline_get vinfer.available_models || true)
+case "$models" in
+  *[!a-zA-Z0-9,._-]*) echo "invalid vinfer.available_models" >&2; exit 2 ;;
+esac
+
+export VINFER_MODEL_LOG_DIR=/run/vinfer/model-logs
+export VINFER_LLAMACPP_SERVER=/mnt/glm/llamacpp-bin/llama-server
+export VINFER_BITNETCPP_SERVER=/mnt/models/bitnet-bin/llama-server
+set -- --threads 64 --context-cap 8192
+[ -z "$models" ] || set -- --models "$models" "$@"
+exec /home/ubuntu/verified-inference/.venv/bin/python -m server.serve_models "$@"

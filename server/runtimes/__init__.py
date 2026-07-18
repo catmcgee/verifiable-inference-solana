@@ -1,4 +1,4 @@
-"""Runtime adapters (ADDON step 1): new runtime = one file implementing Runtime."""
+"""Runtime adapters: each runtime implements the shared Runtime contract."""
 
 from server.registry import ModelEntry
 from server.runtimes.base import Runtime
@@ -15,4 +15,6 @@ def for_model(entry: ModelEntry) -> Runtime:
     try:
         return _RUNTIMES[entry.runtime](entry)
     except KeyError:
-        raise ValueError(f"unknown runtime {entry.runtime!r} for model {entry.id}") from None
+        raise ValueError(
+            f"unknown runtime {entry.runtime!r} for model {entry.id}"
+        ) from None

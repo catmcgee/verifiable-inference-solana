@@ -1,13 +1,13 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "verified-inference",
-    "version": "0.3.0"
+    "title": "Verified Inference",
+    "version": "0.7.0"
   },
   "paths": {
     "/v1/models": {
       "get": {
-        "summary": "Models",
+        "summary": "List available attested inference models",
         "operationId": "models_v1_models_get",
         "responses": {
           "200": {
@@ -23,7 +23,7 @@
     },
     "/v1/attestation": {
       "get": {
-        "summary": "Attestation",
+        "summary": "Fetch the current SNP attestation document",
         "operationId": "attestation_v1_attestation_get",
         "responses": {
           "200": {
@@ -37,46 +37,9 @@
         }
       }
     },
-    "/v1/infer_sealed": {
-      "post": {
-        "summary": "Infer Sealed",
-        "description": "input_mode=hpke: prompt arrives encrypted to the enclave HPKE key and is\ndecrypted here (inside the enclave), never visible to a TLS-terminating proxy.",
-        "operationId": "infer_sealed_v1_infer_sealed_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SealedInferRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/chat/completions": {
       "post": {
-        "summary": "Chat Completions",
+        "summary": "Generate an attested chat completion",
         "operationId": "chat_completions_v1_chat_completions_post",
         "requestBody": {
           "content": {
@@ -106,13 +69,16 @@
                 }
               }
             }
+          },
+          "402": {
+            "description": "x402 payment required; see the PAYMENT-REQUIRED header."
           }
         }
       }
     },
     "/v1/receipts/{receipt_id}": {
       "get": {
-        "summary": "Get Receipt",
+        "summary": "Fetch a signed inference receipt",
         "operationId": "get_receipt_v1_receipts__receipt_id__get",
         "parameters": [
           {
@@ -150,6 +116,21 @@
   },
   "components": {
     "schemas": {
+      "AuthSessionRequest": {
+        "properties": {
+          "access_code": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Access Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_code"
+        ],
+        "title": "AuthSessionRequest"
+      },
       "ChatRequest": {
         "properties": {
           "model": {
@@ -293,5 +274,10 @@
         "title": "ValidationError"
       }
     }
-  }
+  },
+  "servers": [
+    {
+      "url": "https://pay.example.invalid"
+    }
+  ]
 }

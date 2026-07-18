@@ -1,0 +1,36 @@
+[Unit]
+Description=Immutable measured Leg C SNP Claude proxy
+After=network-online.target vinfer-boot-evidence.service
+Wants=network-online.target
+Requires=vinfer-boot-evidence.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/verified-inference
+EnvironmentFile=/home/ubuntu/verified-inference/.env.local
+Environment=VINFER_C_MODEL=claude-haiku-4-5-20251001
+Environment=VINFER_SEV_MODE=snp
+Environment=VINFER_REQUIRE_AUTH=1
+Environment=VINFER_AUTH_COOKIE_PATH=/
+Environment=VINFER_AUTH_SECURE_COOKIE=1
+Environment=VINFER_AUTH_TOKEN_FILE=/home/ubuntu/.config/vinfer/origin-token
+Environment=VINFER_RECEIPT_RELAY_URL=http://10.0.2.2:8480
+Environment=VINFER_RECEIPT_RELAY_TOKEN_FILE=/home/ubuntu/.config/vinfer/receipt-relay-token
+Environment=VINFER_BOOT_EVIDENCE=/run/vinfer/boot-evidence.json
+Environment=XDG_CACHE_HOME=/run/vinfer/cache
+PermissionsStartOnly=true
+ExecStartPre=+/bin/chgrp ubuntu /dev/sev-guest
+ExecStartPre=+/bin/chmod 0660 /dev/sev-guest
+ExecStart=/bin/sh -c 'export VINFER_AUTH_TOKEN="$$(cat "$${VINFER_AUTH_TOKEN_FILE}")"; exec /home/ubuntu/verified-inference/.venv/bin/uvicorn server.proxy.legc_proxy:app --host 0.0.0.0 --port 8480 --no-access-log'
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/run/vinfer
+
+[Install]
+WantedBy=multi-user.target

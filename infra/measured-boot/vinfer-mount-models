@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+. /usr/local/lib/vinfer-cmdline
+
+models_hash=$(vinfer_cmdline_get vinfer.models_hash)
+glm_hash=$(vinfer_cmdline_get vinfer.glm_hash)
+vinfer_require_sha256 models "$models_hash"
+vinfer_require_sha256 glm "$glm_hash"
+
+for device in /dev/vdc /dev/vdd /dev/vde /dev/vdf; do
+  count=0
+  while [ ! -b "$device" ] && [ "$count" -lt 300 ]; do
+    sleep 0.1
+    count=$((count + 1))
+  done
+  [ -b "$device" ] || { echo "timed out waiting for $device" >&2; exit 2; }
+done
+
+veritysetup --panic-on-corruption open \
+  /dev/vdc vinfer-models /dev/vdd "$models_hash"
+veritysetup --panic-on-corruption open \
+  /dev/vde vinfer-glm /dev/vdf "$glm_hash"
+for mountpoint in /mnt/models /mnt/glm; do
+  [ -d "$mountpoint" ] || {
+    echo "immutable root is missing $mountpoint" >&2
+    exit 2
+  }
+done
+mount -t ext4 -o ro,nodev,nosuid /dev/mapper/vinfer-models /mnt/models
+mount -t ext4 -o ro,nodev,nosuid /dev/mapper/vinfer-glm /mnt/glm

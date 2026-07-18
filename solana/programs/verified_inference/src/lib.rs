@@ -1,5 +1,5 @@
 //! verified_inference — attestation registry + inference receipts + zkML
-//! proof records for the TEE cost/trust measurement harness (see /PLAN.md,
+//! proof records for the TEE cost/trust measurement harness (see /README.md,
 //! "Solana: attestation registry + receipts").
 
 pub mod constants;
@@ -76,6 +76,45 @@ pub mod verified_inference {
         public_inputs_hash: [u8; 32],
         rung_id: u8,
     ) -> Result<()> {
-        instructions::verify_inference_proof::handle_verify_inference_proof(ctx, proof_hash, public_inputs_hash, rung_id)
+        instructions::verify_inference_proof::handle_verify_inference_proof(
+            ctx,
+            proof_hash,
+            public_inputs_hash,
+            rung_id,
+        )
+    }
+
+    /// Open an SPL-token escrow channel for the project-defined
+    /// `vinfer-session-v1` HTTP payment flow.
+    pub fn open_channel(ctx: Context<OpenChannel>, args: OpenChannelArgs) -> Result<()> {
+        instructions::payment_channel::handle_open_channel(ctx, args)
+    }
+
+    pub fn top_up_channel(ctx: Context<TopUpChannel>, amount: u64) -> Result<()> {
+        instructions::payment_channel::handle_top_up_channel(ctx, amount)
+    }
+
+    /// Verify a payer voucher and advance both the authorized ceiling and the
+    /// operator-selected cumulative settlement amount.
+    pub fn settle_channel(
+        ctx: Context<SettleChannel>,
+        cumulative_authorized: u64,
+        cumulative_settlement: u64,
+        expires_at: i64,
+    ) -> Result<()> {
+        instructions::payment_channel::handle_settle_channel(
+            ctx,
+            cumulative_authorized,
+            cumulative_settlement,
+            expires_at,
+        )
+    }
+
+    pub fn request_channel_close(ctx: Context<RequestChannelClose>) -> Result<()> {
+        instructions::payment_channel::handle_request_channel_close(ctx)
+    }
+
+    pub fn finalize_channel(ctx: Context<FinalizeChannel>) -> Result<()> {
+        instructions::payment_channel::handle_finalize_channel(ctx)
     }
 }

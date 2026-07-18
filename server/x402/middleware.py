@@ -1,9 +1,9 @@
-"""x402 payment gate for POST /v1/chat/completions (session intent).
+"""Experimental payment gate for Vinfer's devnet channel prototype.
 
 Free: GET /v1/models, /v1/attestation, /v1/receipts/{id}, /healthz.
 Paid: the chat/completion endpoints, quoted per token.
 
-Flow (draft-solana-session-00):
+Flow (scheme ``vinfer-session-v1``; not draft-solana-session-00 compliant):
   1. No/invalid `Authorization: Payment` → 402 with a challenge (price/unit,
      asset, recipient, session support, the open-channel program).
   2. `Authorization: Payment` carries a base64url JSON credential with an
@@ -20,25 +20,33 @@ from __future__ import annotations
 import base64
 import json
 import os
+import uuid
 
+import httpx
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from server.x402.chain import fetch_channel
 from server.x402.session import ChannelStore, InsufficientFunds, parse_voucher
 
 X402_ENABLED = os.environ.get("VINFER_X402", "0") == "1"
-USDC_MINT = os.environ.get("VINFER_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")  # mainnet USDC
-RECIPIENT = os.environ.get("VINFER_PAYEE", "")            # operator payout pubkey
-CHANNEL_PROGRAM = os.environ.get("VINFER_CHANNEL_PROGRAM", "SessionChanne1111111111111111111111111111111")
-NETWORK = os.environ.get("VINFER_SOLANA_NETWORK", "mainnet")
+USDC_MINT = os.environ.get(
+    "VINFER_USDC_MINT",
+    "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",  # Circle Solana Devnet USDC
+)
+RECIPIENT = os.environ.get("VINFER_PAYEE", "")  # operator payout pubkey
+CHANNEL_PROGRAM = os.environ.get(
+    "VINFER_CHANNEL_PROGRAM", "Dp5LxL9XHZUVXK129rxwBafqHMg1Y29Zda2svx8vXEkx"
+)
+NETWORK = os.environ.get("VINFER_SOLANA_NETWORK", "devnet")
 GRACE_SECONDS = 900
-
-PAID_PATHS = {"/v1/chat/completions", "/v1/infer", "/v1/infer_sealed"}
 
 _store = ChannelStore()
 
 
-def _price_micro_usdc(model_id: str, prompt_tokens: int, max_tokens: int, registry) -> int:
+def _price_micro_usdc(
+    model_id: str, prompt_tokens: int, max_tokens: int, registry
+) -> int:
     """Upfront quote = prompt_tokens*in + max_tokens*out (settled at close on
     actual streamed tokens). micro-USDC (1e6). Prices are per 1M tokens."""
     m = registry.get(model_id)
@@ -52,30 +60,70 @@ def _price_micro_usdc(model_id: str, prompt_tokens: int, max_tokens: int, regist
 def _challenge(model_id: str, quote_micro: int, registry) -> JSONResponse:
     m = registry.get(model_id)
     body = {
-        "x402Version": 1,
+        "paymentProtocol": "experimental",
         "error": "payment required",
-        "accepts": [{
-            "scheme": "session",              # draft-solana-session-00
-            "network": NETWORK,
-            "asset": USDC_MINT,
-            "assetSymbol": "USDC",
-            "recipient": RECIPIENT or None,
-            "unitType": "token",
-            "amount": {
-                "price_per_1m_in_usdc": m.price_per_1m_in_usdc if m else None,
-                "price_per_1m_out_usdc": m.price_per_1m_out_usdc if m else None,
-                "quote_micro_usdc": quote_micro,
-            },
-            "channelProgram": CHANNEL_PROGRAM,
-            "gracePeriodSeconds": GRACE_SECONDS,
-            "settlement": "pay-first-per-request; metered by cumulative voucher; "
-                          "final settle on actual streamed tokens at close",
-        }],
-        "note": "Every paid response carries an on-chain attested receipt "
-                "(X-Vinfer-Receipt-Id). Verify with `vinfer verify`.",
+        "accepts": [
+            {
+                "scheme": "vinfer-session-v1",
+                "challengeId": uuid.uuid4().hex,
+                "network": NETWORK,
+                "asset": USDC_MINT,
+                "assetSymbol": "USDC",
+                "recipient": RECIPIENT or None,
+                "unitType": "token",
+                "amount": {
+                    "price_per_1m_in_usdc": m.price_per_1m_in_usdc if m else None,
+                    "price_per_1m_out_usdc": m.price_per_1m_out_usdc if m else None,
+                    "quote_micro_usdc": quote_micro,
+                },
+                "channelProgram": CHANNEL_PROGRAM,
+                "gracePeriodSeconds": GRACE_SECONDS,
+                "settlement": "pay-first-per-request; metered by cumulative voucher; "
+                "final settle on actual streamed tokens at close",
+            }
+        ],
+        "note": "Every paid response carries an SNP-key-signed receipt "
+        "(X-Vinfer-Receipt-Id). On-chain posting is a separate devnet "
+        "step; `vinfer verify` reports INCOMPLETE until it is posted.",
     }
-    return JSONResponse(status_code=402, content=body,
-                        headers={"WWW-Authenticate": 'Payment realm="verified-inference"'})
+    return JSONResponse(
+        status_code=402,
+        content=body,
+        headers={
+            "WWW-Authenticate": 'Payment realm="verified-inference"',
+            "Cache-Control": "no-store, private",
+        },
+    )
+
+
+def validate_config() -> None:
+    """Fail startup rather than expose an open-ended payment recipient."""
+    if not X402_ENABLED:
+        return
+    from solders.pubkey import Pubkey
+
+    if NETWORK != "devnet":
+        raise RuntimeError("vinfer-session-v1 is restricted to Solana devnet")
+    if not RECIPIENT:
+        raise RuntimeError("VINFER_PAYEE is required when VINFER_X402=1")
+    for value, name in (
+        (RECIPIENT, "VINFER_PAYEE"),
+        (USDC_MINT, "VINFER_USDC_MINT"),
+        (CHANNEL_PROGRAM, "VINFER_CHANNEL_PROGRAM"),
+    ):
+        try:
+            Pubkey.from_string(value)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"{name} must be a Solana public key") from exc
+
+
+def _validate_onchain(account) -> None:
+    if account.status not in ("open", "closing"):
+        raise ValueError("channel has an unknown on-chain status")
+    if RECIPIENT and account.payee != RECIPIENT:
+        raise ValueError("channel payee does not match this service")
+    if account.mint != USDC_MINT:
+        raise ValueError("channel mint does not match the configured asset")
 
 
 def _parse_credential(request: Request) -> dict | None:
@@ -83,14 +131,15 @@ def _parse_credential(request: Request) -> dict | None:
     if not hdr.lower().startswith("payment "):
         return None
     try:
-        raw = hdr[len("payment "):].strip()
+        raw = hdr[len("payment ") :].strip()
         return json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
     except Exception:
         return None
 
 
-async def gate(request: Request, model_id: str, prompt_tokens: int, max_tokens: int,
-               registry) -> tuple[bool, JSONResponse | None, dict]:
+async def gate(
+    request: Request, model_id: str, prompt_tokens: int, max_tokens: int, registry
+) -> tuple[bool, JSONResponse | None, dict]:
     """Returns (allowed, error_response_or_None, meter_ctx).
     meter_ctx carries the channel so the caller can finalize the debit on the
     ACTUAL streamed token count after generation."""
@@ -104,64 +153,132 @@ async def gate(request: Request, model_id: str, prompt_tokens: int, max_tokens: 
 
     action = cred.get("action")
     if action == "open":
-        # Client opened a channel on-chain; register its parameters. (P5: verify
-        # the channel account on-chain before trusting deposit/signer.)
-        ch = _store.open(
-            channel_b58=cred["channelId"],
-            channel_bytes=bytes(32),
-            authorized_signer=_decode(cred["authorizedSigner"]),
-            deposit=int(cred["deposit"]),
+        try:
+            account = await fetch_channel(cred["channelId"])
+            if account is None:
+                raise ValueError("channel does not exist on-chain")
+            _validate_onchain(account)
+            if account.status != "open":
+                raise ValueError("channel is already closing")
+            ch = _store.sync_onchain(account)
+        except (KeyError, ValueError, httpx.HTTPError, RuntimeError) as e:
+            return (
+                False,
+                JSONResponse(
+                    status_code=402,
+                    content={"error": str(e)},
+                    headers={"Cache-Control": "no-store, private"},
+                ),
+                {},
+            )
+        return (
+            False,
+            JSONResponse(
+                status_code=402,
+                content={
+                    "status": "channel-open",
+                    "channelId": ch.channel_b58,
+                    "deposit": ch.deposit,
+                    "note": "send a voucher to spend",
+                },
+            ),
+            {},
         )
-        return False, JSONResponse(status_code=402, content={
-            "status": "channel-open", "channelId": ch.channel_b58,
-            "deposit": ch.deposit, "note": "send a voucher to spend"}), {}
 
     if action in ("voucher", "topUp"):
         try:
             v = parse_voucher(cred["voucher"])
-            ch = _store.get(v.channel_b58)
-            if ch is None:
-                return False, JSONResponse(status_code=402, content={
-                    "error": "unknown channel; send action=open first"}), {}
-            ch.accept_voucher(v)
-            ch.debit(quote)   # debit the upfront quote; reconcile at finalize
+            account = await fetch_channel(v.channel_b58)
+            if account is None:
+                raise ValueError("channel no longer exists on-chain")
+            _validate_onchain(account)
+            if account.status != "open":
+                raise ValueError("channel is closing")
+            _store.sync_onchain(account)
+            ch = _store.authorize_and_debit(v, quote)
         except InsufficientFunds as e:
-            return False, JSONResponse(status_code=402, content={
-                "error": "insufficient authorized balance", "need_micro_usdc": e.need,
-                "available_micro_usdc": e.available,
-                "note": "submit a higher cumulative voucher (top up)"}), {}
+            return (
+                False,
+                JSONResponse(
+                    status_code=402,
+                    content={
+                        "error": "insufficient authorized balance",
+                        "need_micro_usdc": e.need,
+                        "available_micro_usdc": e.available,
+                        "note": "submit a higher cumulative voucher (top up)",
+                    },
+                ),
+                {},
+            )
         except Exception as e:
             return False, JSONResponse(status_code=402, content={"error": str(e)}), {}
-        return True, None, {"metered": True, "channel": ch, "quote": quote}
+        return (
+            True,
+            None,
+            {
+                "metered": True,
+                "channel": ch,
+                "quote": quote,
+                "prompt_tokens": prompt_tokens,
+            },
+        )
 
     if action == "close":
-        ch = _store.get(cred.get("channelId", ""))
-        if ch:
-            ch.status = "closing"
-        return False, JSONResponse(status_code=200, content={
-            "status": "closing", "spent_micro_usdc": ch.spent if ch else 0,
-            "note": "operator will settleAndFinalize + distribute on-chain"}), {}
+        try:
+            account = await fetch_channel(cred["channelId"])
+            if account is None:
+                raise ValueError("channel no longer exists on-chain")
+            _validate_onchain(account)
+            ch = _store.sync_onchain(account)
+            if account.status != "closing":
+                raise ValueError("request_channel_close has not confirmed on-chain")
+        except Exception as e:
+            return False, JSONResponse(status_code=402, content={"error": str(e)}), {}
+        return (
+            False,
+            JSONResponse(
+                status_code=200,
+                content={
+                    "status": "closing",
+                    "spent_micro_usdc": ch.spent,
+                    "authorized_micro_usdc": ch.accepted_cumulative,
+                    "note": "operator may settle the metered cumulative amount on-chain",
+                },
+            ),
+            {},
+        )
 
     return False, _challenge(model_id, quote, registry), {}
 
 
 def finalize(meter_ctx: dict, actual_out_tokens: int, model_id: str, registry) -> dict:
-    """After generation, reconcile the upfront quote to actual streamed tokens.
-    Refund the difference back into channel availability (spec: metered)."""
+    """Reconcile the upfront quote to actual streamed tokens.
+
+    The local channel meter restores unused authorization. This is prototype
+    behavior, not a claim about draft-solana-session-00 semantics.
+    """
     if not meter_ctx.get("metered"):
         return {"metered": False}
     ch = meter_ctx["channel"]
     quote = meter_ctx["quote"]
     m = registry.get(model_id)
-    actual = int(round((actual_out_tokens / 1_000_000) * (m.price_per_1m_out_usdc or 0) * 1_000_000))
+    actual = int(
+        round(
+            (
+                (meter_ctx["prompt_tokens"] / 1_000_000) * (m.price_per_1m_in_usdc or 0)
+                + (actual_out_tokens / 1_000_000) * (m.price_per_1m_out_usdc or 0)
+            )
+            * 1_000_000
+        )
+    )
     refund = max(0, quote - actual)
-    ch.spent -= refund   # give back the unused portion of the upfront quote
-    return {"metered": True, "channelId": ch.channel_b58,
-            "quote_micro_usdc": quote, "charged_micro_usdc": quote - refund,
-            "refunded_micro_usdc": refund, "spent_total_micro_usdc": ch.spent,
-            "available_micro_usdc": ch.available}
-
-
-def _decode(s: str) -> bytes:
-    from server.x402.session import _decode_key
-    return _decode_key(s)
+    ch = _store.reconcile(ch.channel_b58, quote, actual)
+    return {
+        "metered": True,
+        "channelId": ch.channel_b58,
+        "quote_micro_usdc": quote,
+        "charged_micro_usdc": quote - refund,
+        "refunded_micro_usdc": refund,
+        "spent_total_micro_usdc": ch.spent,
+        "available_micro_usdc": ch.available,
+    }

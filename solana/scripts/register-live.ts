@@ -27,7 +27,8 @@ import { fileURLToPath } from "url";
 const DEVNET_URL = "https://api.devnet.solana.com";
 const EXPLORER = (kind: "tx" | "address", id: string) =>
   `https://explorer.solana.com/${kind}/${id}?cluster=devnet`;
-const u64le = (n: BN | number): Buffer => new BN(n).toArrayLike(Buffer, "le", 8);
+const u64le = (n: BN | number): Buffer =>
+  new BN(n).toArrayLike(Buffer, "le", 8);
 
 // SNP report ABI offsets
 const OFF_MEASUREMENT = 0x90; // 48 bytes
@@ -35,7 +36,8 @@ const OFF_MEASUREMENT = 0x90; // 48 bytes
 async function main() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const receiptPath = process.argv[2];
-  if (!receiptPath) throw new Error("usage: node register-live.ts <receipt.json>");
+  if (!receiptPath)
+    throw new Error("usage: node register-live.ts <receipt.json>");
   const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
   const att = receipt.attestation;
   if (!att) throw new Error("receipt has no embedded attestation doc");
@@ -56,16 +58,31 @@ async function main() {
   }
 
   const deployer = Keypair.fromSecretKey(
-    Uint8Array.from(JSON.parse(fs.readFileSync(path.join(here, "..", ".devnet-deployer.json"), "utf8")))
+    Uint8Array.from(
+      JSON.parse(
+        fs.readFileSync(path.join(here, "..", ".devnet-deployer.json"), "utf8")
+      )
+    )
   );
-  const idl = JSON.parse(fs.readFileSync(path.join(here, "..", "target", "idl", "verified_inference.json"), "utf8"));
+  const idl = JSON.parse(
+    fs.readFileSync(
+      path.join(here, "..", "target", "idl", "verified_inference.json"),
+      "utf8"
+    )
+  );
   const connection = new Connection(DEVNET_URL, "confirmed");
-  const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(deployer), { commitment: "confirmed" });
+  const provider = new anchor.AnchorProvider(
+    connection,
+    new anchor.Wallet(deployer),
+    { commitment: "confirmed" }
+  );
   anchor.setProvider(provider);
   const program = new Program(idl as any, provider);
 
   const [attestationPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("attestation"), enclavePk], program.programId);
+    [Buffer.from("attestation"), enclavePk],
+    program.programId
+  );
 
   console.log("enclave pubkey :", enclavePk.toString("hex"));
   console.log("grade          :", att.grade);
@@ -92,10 +109,14 @@ async function main() {
   console.log("register tx    :", regSig);
 
   // 2. post the receipt with its REAL in-enclave signature
-  const acct = await (program.account as any).attestationAccount.fetch(attestationPda);
+  const acct = await (program.account as any).attestationAccount.fetch(
+    attestationPda
+  );
   const index = acct.receiptCount.toNumber();
   const [receiptPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("receipt"), enclavePk, u64le(index)], program.programId);
+    [Buffer.from("receipt"), enclavePk, u64le(index)],
+    program.programId
+  );
   const msg = Buffer.concat([
     Buffer.from(receipt.prompt_hash, "hex"),
     Buffer.from(receipt.response_hash, "hex"),
@@ -113,7 +134,7 @@ async function main() {
       Array.from(Buffer.from(receipt.prompt_hash, "hex")),
       Array.from(Buffer.from(receipt.response_hash, "hex")),
       Array.from(Buffer.from(receipt.model_hash, "hex")),
-      new BN(receipt.timestamp),
+      new BN(receipt.timestamp)
     )
     .accountsPartial({
       payer: deployer.publicKey,
@@ -122,10 +143,23 @@ async function main() {
       instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
     })
     .instruction();
-  const postSig = await provider.sendAndConfirm(new Transaction().add(ed25519Ix, postIx), [], { commitment: "confirmed" });
+  const postSig = await provider.sendAndConfirm(
+    new Transaction().add(ed25519Ix, postIx),
+    [],
+    { commitment: "confirmed" }
+  );
   console.log("receipt tx     :", postSig);
   console.log("receipt PDA    :", receiptPda.toBase58(), `(index ${index})`);
-  console.log("explorer       :", EXPLORER("address", attestationPda.toBase58()));
+  console.log(
+    "explorer       :",
+    EXPLORER("address", attestationPda.toBase58())
+  );
 }
 
-main().then(() => process.exit(0), (e) => { console.error("FAILED:", e); process.exit(1); });
+main().then(
+  () => process.exit(0),
+  (e) => {
+    console.error("FAILED:", e);
+    process.exit(1);
+  }
+);

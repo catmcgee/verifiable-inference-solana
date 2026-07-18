@@ -1,0 +1,12 @@
+[Unit]
+Description=Open dm-verity protected model images
+After=vinfer-boot-evidence.service
+Before=vinfer-measured-models.service vinfer-measured-origin.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vinfer-mount-models
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

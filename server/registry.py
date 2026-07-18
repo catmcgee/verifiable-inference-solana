@@ -8,12 +8,17 @@ pending: listed in /v1/models as unavailable, excluded from the hash).
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "models.yaml"
+MODEL_ID = re.compile(r"[a-z0-9][a-z0-9._-]*")
+RUNTIMES = frozenset({"llamacpp", "bitnetcpp"})
+LEGS = frozenset({"A", "B", "D"})
+CHAT_TEMPLATES = frozenset({"builtin", "jinja"})
 
 
 @dataclass(frozen=True)
@@ -43,17 +48,73 @@ class ModelEntry:
 
 def load(path: Path = REGISTRY_PATH) -> dict[str, ModelEntry]:
     raw = yaml.safe_load(path.read_text())
-    entries = {}
+    if not isinstance(raw, list) or not raw:
+        raise ValueError(f"{path}: registry must be a non-empty YAML list")
+    entries: dict[str, ModelEntry] = {}
+    ports: set[int] = set()
     for e in raw:
-        entries[e["id"]] = ModelEntry(
-            id=e["id"], runtime=e["runtime"], weights=e["weights"],
-            weights_sha256=e.get("weights_sha256"), quant=e["quant"],
-            ctx_max=e["ctx_max"], chat_template=e["chat_template"],
-            legs=tuple(e["legs"]), port=e["port"],
-            price_per_1m_in_usdc=e.get("price_per_1m_in_usdc"),
-            price_per_1m_out_usdc=e.get("price_per_1m_out_usdc"),
+        if not isinstance(e, dict):
+            raise ValueError(f"{path}: every registry entry must be a mapping")
+        model_id = e.get("id")
+        if not isinstance(model_id, str) or not MODEL_ID.fullmatch(model_id):
+            raise ValueError(f"{path}: invalid model id {model_id!r}")
+        if model_id in entries:
+            raise ValueError(f"{path}: duplicate model id {model_id!r}")
+        runtime = e.get("runtime")
+        if runtime not in RUNTIMES:
+            raise ValueError(f"{path}: unsupported runtime {runtime!r} for {model_id}")
+        weights = e.get("weights")
+        if not isinstance(weights, str) or not Path(weights).is_absolute():
+            raise ValueError(f"{path}: weights for {model_id} must be an absolute path")
+        weights_sha256 = e.get("weights_sha256")
+        if weights_sha256 is not None and not re.fullmatch(
+            r"[0-9a-f]{64}", weights_sha256
+        ):
+            raise ValueError(f"{path}: invalid weights_sha256 for {model_id}")
+        port = e.get("port")
+        if not isinstance(port, int) or not 1024 <= port <= 65535:
+            raise ValueError(f"{path}: invalid port for {model_id}")
+        if port in ports:
+            raise ValueError(f"{path}: duplicate runtime port {port}")
+        ports.add(port)
+        ctx_max = e.get("ctx_max")
+        if not isinstance(ctx_max, int) or ctx_max <= 0:
+            raise ValueError(f"{path}: ctx_max for {model_id} must be positive")
+        chat_template = e.get("chat_template")
+        if chat_template not in CHAT_TEMPLATES:
+            raise ValueError(f"{path}: invalid chat_template for {model_id}")
+        legs = e.get("legs")
+        if not isinstance(legs, list) or not legs or set(legs) - LEGS:
+            raise ValueError(f"{path}: invalid legs for {model_id}")
+        prices = (e.get("price_per_1m_in_usdc"), e.get("price_per_1m_out_usdc"))
+        if (prices[0] is None) != (prices[1] is None):
+            raise ValueError(
+                f"{path}: both prices must be present or absent for {model_id}"
+            )
+        if any(
+            price is not None and (not isinstance(price, (int, float)) or price <= 0)
+            for price in prices
+        ):
+            raise ValueError(f"{path}: prices for {model_id} must be positive")
+
+        entries[model_id] = ModelEntry(
+            id=model_id,
+            runtime=runtime,
+            weights=weights,
+            weights_sha256=weights_sha256,
+            quant=e["quant"],
+            ctx_max=ctx_max,
+            chat_template=chat_template,
+            legs=tuple(legs),
+            port=port,
+            price_per_1m_in_usdc=prices[0],
+            price_per_1m_out_usdc=prices[1],
         )
     return entries
+
+
+def servable_ids(entries: dict[str, ModelEntry]) -> list[str]:
+    return [model.id for model in entries.values() if model.servable]
 
 
 def pairs_hash(pairs: list[dict]) -> bytes:
@@ -65,5 +126,9 @@ def pairs_hash(pairs: list[dict]) -> bytes:
 
 def registry_hash(entries: dict[str, ModelEntry]) -> bytes:
     return pairs_hash(
-        [{"id": m.id, "weights_sha256": m.weights_sha256} for m in entries.values() if m.servable]
+        [
+            {"id": m.id, "weights_sha256": m.weights_sha256}
+            for m in entries.values()
+            if m.servable
+        ]
     )

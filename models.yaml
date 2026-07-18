@@ -1,4 +1,4 @@
-# Model registry — SINGLE SOURCE OF TRUTH (ADDON-REGISTRY.md step 1).
+# Model registry: the single source of truth for model configuration.
 # Consumers: server, harness, attestation binding, pricing.py, payskill gen.
 # price_* fields are written by report/pricing.py — never by hand.
 # weights paths are box paths; weights_sha256 for sharded models is the sha256
@@ -16,8 +16,8 @@
   - B
   - D
   port: 8601
-  price_per_1m_in_usdc: 3.0636
-  price_per_1m_out_usdc: 12.2544
+  price_per_1m_in_usdc: 3.3407
+  price_per_1m_out_usdc: 13.3629
 - id: 8b-q4
   runtime: llamacpp
   weights: /home/ubuntu/models/llama-3.1-8b-instruct-Q4_K_M.gguf
@@ -29,8 +29,8 @@
   - A
   - B
   port: 8602
-  price_per_1m_in_usdc: 4.8166
-  price_per_1m_out_usdc: 19.2665
+  price_per_1m_in_usdc: 5.0962
+  price_per_1m_out_usdc: 20.3847
 - id: 8b-q8
   runtime: llamacpp
   weights: /home/ubuntu/models/llama-3.1-8b-instruct-Q8_0.gguf
@@ -42,8 +42,8 @@
   - A
   - B
   port: 8603
-  price_per_1m_in_usdc: 6.0296
-  price_per_1m_out_usdc: 24.1183
+  price_per_1m_in_usdc: 6.3269
+  price_per_1m_out_usdc: 25.3074
 - id: 70b-q4
   runtime: llamacpp
   weights: /home/ubuntu/models/llama-3.3-70b-instruct-Q4_K_M.gguf
@@ -55,16 +55,15 @@
   - A
   - B
   port: 8604
-  price_per_1m_in_usdc: 24.0689
-  price_per_1m_out_usdc: 96.2757
-# GLM-5.2 chat path needs llama-server --jinja; raw /completion works without it.
+  price_per_1m_in_usdc: 26.4626
+  price_per_1m_out_usdc: 105.8504
 - id: glm-5.2-q4
   runtime: llamacpp
   weights: /home/ubuntu/models/GLM-5.2-UD-Q4_K_XL/UD-Q4_K_XL/GLM-5.2-UD-Q4_K_XL-00001-of-00011.gguf
   weights_sha256: 6cee6514c387347c889ef4093649dd5803699477ce3c42bc4cfc2faea648bef3
   quant: UD-Q4_K_XL
   ctx_max: 131072
-  chat_template: builtin
+  chat_template: jinja
   legs:
   - A
   - B

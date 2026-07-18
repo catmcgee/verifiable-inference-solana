@@ -95,6 +95,62 @@ priority compute-unit price + loader overhead; both within expected range.
 post_receipt 13,580 vs ~12,080. Use devnet numbers for the mainnet fee
 projection in the report.
 
+## Current public SNP boot (2026-07-17)
+
+The public API now runs all five models, including GLM-5.2, inside the 832 GiB
+SNP guest. The final `vinfer-0.7.0` VMPL0 report passed KDS/policy/HPKE
+validation; its decoded PDA exactly matches runtime version, REPORT_DATA,
+registry hash, launch measurement, grade, and binding version:
+
+- attestation PDA `GbJUCjVMnzFe85hkvuoeGsG5NZXWDH7G8kT1p9bfGDg5`
+- register tx `4wiegBd4o5xct16urXuwc16XoroyXgkaButJiK4xYVF7FYb8DCuLDFDg5Q8nRmkrzpiohoMZmkP83u1EPTfxtYmG`
+- grade `Snp`, runtime `vinfer-0.7.0`, binding v2, five active runtimes
+- measurement `7637fb0b5e46bcab8111cc634caf0e43faba4b61ec3d1ad7d8bd96a257097729447e6524439400142fa862fb0158b9b1`
+- `vinfer verify runs/glm-snp-receipt.json` passes every hardware, binding,
+  registry, PDA, measurement, and signature check, then reports the inference
+  record `ABSENT` because per-response posting is not integrated
+
+## Previous public SNP boot (2026-07-17; 64 GiB guest)
+
+This build introduced exact OpenAI usage accounting and empty/EOS completion
+handling. Its VMPL0 report passed KDS/policy/HPKE validation and served four
+active runtimes under the complete five-model registry binding:
+
+- attestation PDA `7pi7ytu6KRpdyZ9gHgoAQqPCx3124d5UwEoo9obmwkBq`
+- register tx `4p6AP7rGCqKYyY5Bc28m4P9bb6BN9LrEM1YNBhY4HdbLuPgbsxX68uQjVeHqwVPVHAbMLVPcf5y6spMrqjmGkVia`
+- grade `Snp`, runtime `vinfer-0.7.0`, binding v2, registry exact-match
+- per-inference receipts are signed but explicitly `not-posted`; this boot
+  registration did not fabricate an inference receipt
+
+## Previous public SNP boot (2026-07-16; registered after UTC rollover)
+
+Current authenticated origin (2026-07-17): build `vinfer-0.6.0` binds the
+complete five-entry registry hash
+`49dc89aaa3c7f23a6af99a7ca361cead44b286098bac44b4c96d953c6cdab186` and
+reports four healthy guest runtimes separately. The KDS-verified document was
+registered without fabricating an inference receipt:
+
+- attestation PDA `6wYN1DsGUmxG4Ar98wcLxShbCGUiSoYFQWcpaR8zjmUV`
+- register tx `5YRrGUexD7wf5GUmkvsGPGRjqfcBqpuK4irsysrU7Sb27XXvXFxJXUW7Mr8LGuthmeH5mjt7kkubVrDdH22h3mzz`
+- grade `Snp`, binding v2, registry exact-match
+
+The block below is retained as historical evidence for the earlier boot.
+
+The standing four-model HTTPS service exposes registry hash
+`e8c61b05b85a9b22b3d4e1e27c8231a29f7b21ac3a2f58db1060723e1b53dd06`.
+`scripts/register-attestation-live.ts` registered its current attestation
+without posting a fabricated paid receipt:
+
+- attestation PDA `CUGa59wciYwQ2roUUiyYMrBGfdbXszMxSotTyAfDDbQm`
+- register tx `3j8ySXDgN9ebCpU7H6KJcFRFhqmM7KhZTf195hu5FN7ZdcpkgHjniiKvxrqyytGxdnP2oDaiAabH8ejYffaHWhD9`
+- slot 476861737
+- grade `Snp`, binding v2, receipt count 0
+
+The decoded account exactly matches `runs/final-attestation.json` for
+REPORT_DATA, registry hash, SNP measurement, and enclave public key. Receipt
+count remains zero because the public API is payment-gated and no official
+devnet-USDC client credential was available for a real paid call.
+
 ## Deploy cost / ops
 
 - Deployer funded ~3 SOL via airdrop (devnet, free). Program account rent
@@ -105,9 +161,10 @@ projection in the report.
   fresh with `--with-compute-unit-price 50 --max-sign-attempts 200`. Don't
   reuse a buffer from a stalled deploy without verifying its ELF.
 
-## Next (P4/P5)
+## Remaining
 
-- Point `vinfer verify` at devnet: fetch the attestation PDA, check
-  registry_hash matches the served registry, confirm the receipt PDA exists.
-- Merkle-batched receipts on devnet for the per-receipt vs batched cost chart.
-- verify_inference_proof: wire groth16-solana when leg D resumes (post-B200s).
+- Publish the payment listing only after draft-compatible Solana sessions and
+  mainnet settlement exist; the current `vinfer-session-v1` devnet scheme is
+  intentionally labeled experimental.
+- Wire and verify the Groth16 instruction when Leg D resumes on the CPU box.
+  It remains an explicit stub, not a claimed verifier.

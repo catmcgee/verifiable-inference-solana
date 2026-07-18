@@ -39,7 +39,10 @@ pub struct RegisterAttestationArgs {
     pub registry_hash: [u8; 32],
 }
 
-pub fn handle_register_attestation(ctx: Context<RegisterAttestation>, args: RegisterAttestationArgs) -> Result<()> {
+pub fn handle_register_attestation(
+    ctx: Context<RegisterAttestation>,
+    args: RegisterAttestationArgs,
+) -> Result<()> {
     require!(
         args.runtime_version.len() <= MAX_RUNTIME_VERSION_LEN as usize,
         VerifiedInferenceError::RuntimeVersionTooLong

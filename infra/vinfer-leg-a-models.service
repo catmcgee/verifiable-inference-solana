@@ -1,0 +1,21 @@
+[Unit]
+Description=verified-inference leg A bare-metal model runtimes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/verified-inference
+Environment=VINFER_LLAMACPP_SERVER=/home/ubuntu/src/llama.cpp/build/bin/llama-server
+Environment=VINFER_BITNETCPP_SERVER=/home/ubuntu/src/BitNet/build/bin/llama-server
+ExecStart=/home/ubuntu/verified-inference/.venv/bin/python -m server.serve_models --models bitnet-2b,8b-q4,8b-q8,70b-q4 --threads 64 --context-cap 8192
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
