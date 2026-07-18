@@ -4,6 +4,8 @@ import base64
 from unittest.mock import AsyncMock, patch
 
 from server.main import _generate
+from server import registry
+from server.runtimes.bitnetcpp import BITNET_CHAT_TEMPLATE, BitnetCppRuntime
 from server.runtimes.llamacpp import _finish_chat, _validated_usage
 from server.receipts.solana import attestation_pda
 
@@ -61,6 +63,17 @@ class LlamaUsageTests(unittest.TestCase):
             "stop",
         )
         self.assertEqual(result["metrics"]["tokens_per_s"], 15.624)
+
+    def test_bitnet_uses_publisher_chat_template(self):
+        runtime = BitnetCppRuntime(registry.load()["bitnet-2b"])
+        payload = runtime._chat_payload(
+            [{"role": "user", "content": "synthetic prompt"}], 12
+        )
+
+        self.assertEqual(payload["chat_template"], BITNET_CHAT_TEMPLATE)
+        self.assertEqual(payload["max_tokens"], 12)
+        self.assertEqual(payload["repeat_penalty"], 1.15)
+        self.assertIn("<|eot_id|>", payload["stop"])
 
 
 class SolanaAddressTests(unittest.TestCase):

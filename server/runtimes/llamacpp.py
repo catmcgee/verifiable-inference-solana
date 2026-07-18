@@ -164,6 +164,18 @@ class LlamaCppRuntime(Runtime):
             raise RuntimeError("llama-server stream ended without final metrics")
         return result
 
+    def _chat_payload(self, messages: list[dict], max_tokens: int) -> dict:
+        return {
+            "model": self.entry.id,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+            # Reasoning-only deltas are not part of OpenAI's portable chat
+            # surface. Return visible assistant content consistently.
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
+
     async def chat_stream(
         self, messages: list[dict], max_tokens: int
     ) -> AsyncIterator[dict]:
@@ -179,16 +191,7 @@ class LlamaCppRuntime(Runtime):
             async with c.stream(
                 "POST",
                 f"{self._base}/v1/chat/completions",
-                json={
-                    "model": self.entry.id,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "stream": True,
-                    "stream_options": {"include_usage": True},
-                    # Reasoning-only deltas are not part of OpenAI's portable chat
-                    # surface. Return visible assistant content consistently.
-                    "chat_template_kwargs": {"enable_thinking": False},
-                },
+                json=self._chat_payload(messages, max_tokens),
             ) as r:
                 r.raise_for_status()
                 async for line in r.aiter_lines():

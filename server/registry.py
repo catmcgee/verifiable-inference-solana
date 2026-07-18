@@ -18,7 +18,7 @@ REGISTRY_PATH = Path(__file__).resolve().parents[1] / "models.yaml"
 MODEL_ID = re.compile(r"[a-z0-9][a-z0-9._-]*")
 RUNTIMES = frozenset({"llamacpp", "bitnetcpp"})
 LEGS = frozenset({"A", "B", "D"})
-CHAT_TEMPLATES = frozenset({"builtin", "jinja"})
+CHAT_TEMPLATES = frozenset({"builtin", "bitnet", "jinja"})
 
 
 @dataclass(frozen=True)

@@ -10,7 +10,7 @@
   weights_sha256: 4221b252fdd5fd25e15847adfeb5ee88886506ba50b8a34548374492884c2162
   quant: i2_s
   ctx_max: 4096
-  chat_template: builtin
+  chat_template: bitnet
   legs:
   - A
   - B
