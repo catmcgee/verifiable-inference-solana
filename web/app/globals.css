@@ -1097,7 +1097,20 @@ a:hover {
 }
 
 .m-hv.actual .n {
+  color: var(--purple);
+}
+
+.m-hv.context {
+  opacity: 0.82;
+}
+
+.m-hv.context .n {
   color: var(--orange);
+  font-size: 32px;
+}
+
+.m-hv.context .u {
+  font-size: 14px;
 }
 
 .m-hv .u {
@@ -1136,7 +1149,7 @@ a:hover {
   align-items: center;
   display: grid;
   gap: 12px;
-  grid-template-columns: 94px 1fr 170px;
+  grid-template-columns: 125px 1fr 170px;
 }
 
 .bar-label,
@@ -1165,6 +1178,14 @@ a:hover {
 
 .bar-row.hit .bar-fill {
   background: var(--purple);
+}
+
+.m-chart-note {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+  margin-top: 18px;
+  max-width: 760px;
 }
 
 .sweepchart {
@@ -1577,13 +1598,11 @@ a:hover {
 .solana-accounts article {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--orange);
   border-radius: 6px;
   padding: 15px;
 }
 
 .solana-accounts article + article { margin-top: 9px; }
-.solana-accounts .receipt-account { border-left-color: var(--green); }
 .solana-accounts article > span { color: var(--orange); font-family: var(--mono); font-size: 7px; text-transform: uppercase; }
 .solana-accounts .receipt-account > span { color: var(--green); }
 .solana-accounts h3 { font-size: 12px; margin-top: 5px; }
@@ -2107,7 +2126,7 @@ a:hover {
   .m-section { overflow-x: auto; padding: 20px 16px; }
   .m-hero-values { gap: 20px; }
   .m-hv .n { font-size: 38px; }
-  .bar-row { grid-template-columns: 74px 1fr; }
+  .bar-row { grid-template-columns: 108px 1fr; }
   .bar-val { grid-column: 2; }
   .m-table { min-width: 520px; }
   .m-raw-head { align-items: stretch; flex-direction: column; }

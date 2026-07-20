@@ -151,32 +151,33 @@ function Hero({ doc }: { doc: MeasurementsDoc }) {
     <section className="m-section m-hero">
       <div className="eyebrow">What the measurements say</div>
       <p className="m-hero-intro">
-        CPU inference moves model weights from random-access memory (RAM) into
-        the processor. The STREAM benchmark isolates that transfer without
-        running a model. Comparing it with complete model runs shows how much
-        the raw cost of memory encryption affects inference.
+        Memory encryption runs automatically while a confidential virtual
+        machine is active; it is not a cost paid once when the TEE starts. The
+        model result below is the useful application number. STREAM is a
+        separate synthetic stress test of raw memory bandwidth.
       </p>
       <div className="m-hero-values">
-        <div className="m-hv ceiling">
-          <div className="n">
-            {ceiling != null ? ceiling.toFixed(1) : DASH}
-            {ceiling != null && <span className="u">%</span>}
-          </div>
-          <div className="m-hv-label">STREAM bandwidth slowdown</div>
-        </div>
-        <div className="m-vs">vs</div>
         <div className="m-hv actual">
           <div className="n">
             {worst != null ? worst.toFixed(1) : DASH}
             {worst != null && <span className="u">%</span>}
           </div>
-          <div className="m-hv-label">model inference slowdown</div>
+          <div className="m-hv-label">matched model slowdown</div>
+        </div>
+        <div className="m-vs">vs</div>
+        <div className="m-hv context">
+          <div className="n">
+            {ceiling != null ? ceiling.toFixed(1) : DASH}
+            {ceiling != null && <span className="u">%</span>}
+          </div>
+          <div className="m-hv-label">SEV-ES synthetic RAM drop</div>
         </div>
       </div>
       <p className="m-finding">
-        Encrypting memory reduced raw RAM speed by 26%. In the matched model
-        tests, inference was only about 2% slower because running a model also
-        spends time on CPU work that is not limited by RAM speed.
+        The largest matched model slowdown was {fmtPct(worst)}; one model was
+        slightly faster within run-to-run variation. The {fmtPct(ceiling)}
+        STREAM result measures sustained SEV-ES memory traffic, not TEE startup
+        time and not the live SNP deployment&apos;s inference tax.
       </p>
     </section>
   );
@@ -186,14 +187,21 @@ function Hero({ doc }: { doc: MeasurementsDoc }) {
 
 function AnchorBars({ a }: { a: StreamAnchor | undefined }) {
   const rows: { label: string; v?: number; tax?: number; hit?: boolean }[] = [
-    { label: "bare metal", v: a?.bare_metal_gbs },
-    { label: "plain vm", v: a?.plain_vm_gbs },
-    { label: "sev-es", v: a?.sev_es_gbs, tax: a?.sev_es_tax_pct, hit: true },
+    { label: "bare metal reference", v: a?.bare_metal_gbs },
+    { label: "plain VM · no SEV", v: a?.plain_vm_gbs },
+    {
+      label: "SEV-ES · encrypted",
+      v: a?.sev_es_gbs,
+      tax: a?.sev_es_tax_pct,
+      hit: true,
+    },
   ];
   const max = Math.max(...rows.map((r) => r.v ?? 0), 1);
   return (
     <section className="m-section">
-      <div className="eyebrow">Memory bandwidth in gigabytes per second (GB/s)</div>
+      <div className="eyebrow">
+        Synthetic STREAM memory bandwidth · SEV-ES test
+      </div>
       <div className="bars">
         {rows.map((r) => (
           <div className={`bar-row${r.hit ? " hit" : ""}`} key={r.label}>
@@ -213,6 +221,11 @@ function AnchorBars({ a }: { a: StreamAnchor | undefined }) {
           </div>
         ))}
       </div>
+      <p className="m-chart-note">
+        This is continuous bandwidth while the VM runs—not a per-request or
+        per-launch charge. It is a useful stress ceiling, not the expected
+        slowdown for model inference.
+      </p>
     </section>
   );
 }
