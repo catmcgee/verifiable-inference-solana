@@ -7,15 +7,15 @@
     "Turin": "1f084161a44bb6d93778a904877d4819cafa5d05ef4193b2ded9dd9c73dd3f6a"
   },
   "allowed_measurements": [
-    "aa9ac2ca4ee6d4254447d9f11ba6ebb5e12254da718b91fbf7016857aadf9f2a48f0dce6bf2609dcf98deed70358f811"
+    "5e15d8e25188c84e90aeaeae9ad91020a73b6c7cb8b2ac07d1e53175e20bd1d26ca2d9aa0b5cdfa4c771317ff76de72e"
   ],
   "allowed_server_build_hashes": [
-    "ccd25a52027a9505a29c5363cbf6b2bcb99dae48f10c3226bac3aa84c1a6f635"
+    "49fa46b86a1da7f64330d046f6d4ac4eb7bebdadd7c2d4e7ba1c0dad1ba139ac"
   ],
   "allowed_builds": [
     {
-      "measurement": "aa9ac2ca4ee6d4254447d9f11ba6ebb5e12254da718b91fbf7016857aadf9f2a48f0dce6bf2609dcf98deed70358f811",
-      "server_build_hash": "ccd25a52027a9505a29c5363cbf6b2bcb99dae48f10c3226bac3aa84c1a6f635",
+      "measurement": "5e15d8e25188c84e90aeaeae9ad91020a73b6c7cb8b2ac07d1e53175e20bd1d26ca2d9aa0b5cdfa4c771317ff76de72e",
+      "server_build_hash": "49fa46b86a1da7f64330d046f6d4ac4eb7bebdadd7c2d4e7ba1c0dad1ba139ac",
       "execution_mode": "snp-measured-dm-verity"
     }
   ],

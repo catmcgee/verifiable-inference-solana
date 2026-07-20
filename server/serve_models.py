@@ -130,6 +130,7 @@ def main() -> None:
     signal.signal(signal.SIGINT, stop)
 
     try:
+        deadline = time.monotonic() + args.startup_timeout
         for model_id in ids:
             model = entries[model_id]
             if healthy(model.port):
@@ -139,24 +140,21 @@ def main() -> None:
             command = launch_command(
                 model, args.threads, args.context_cap, parallel=args.parallel
             )
-            processes.append(subprocess.Popen(command, env=runtime_environment(model)))
-
-        deadline = time.monotonic() + args.startup_timeout
-        while time.monotonic() < deadline:
-            exited = [
-                ids[index]
-                for index, process in enumerate(processes)
-                if process.poll() is not None
-            ]
-            if exited:
-                raise RuntimeError(f"model processes exited during startup: {exited}")
-            if all(healthy(entries[model_id].port) for model_id in ids):
-                break
-            time.sleep(2)
-        else:
-            raise RuntimeError(
-                "model servers did not become healthy before the deadline"
-            )
+            process = subprocess.Popen(command, env=runtime_environment(model))
+            processes.append(process)
+            print(f"waiting for {model_id}", flush=True)
+            while not healthy(model.port):
+                if process.poll() is not None:
+                    raise RuntimeError(
+                        f"model process exited during startup: {model_id}"
+                    )
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"model server did not become healthy before the deadline: "
+                        f"{model_id}"
+                    )
+                time.sleep(2)
+            print(f"ready: {model_id}", flush=True)
 
         while not stopping:
             exited = [

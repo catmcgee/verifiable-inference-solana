@@ -13,7 +13,11 @@ ExecStart=/usr/local/sbin/vinfer-start-models
 KillMode=control-group
 TimeoutStartSec=3600
 TimeoutStopSec=60
+Restart=on-failure
+RestartSec=10
 NoNewPrivileges=true
+StandardOutput=journal+console
+StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target

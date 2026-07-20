@@ -47,7 +47,7 @@ def _registry_pairs() -> list[dict]:
     ]
 
 
-SERVER_BUILD = "vinfer-0.8.2"
+SERVER_BUILD = "vinfer-0.8.3"
 STATIC_REGISTRY_HASH = registry.pairs_hash(_registry_pairs())
 BUILD_IDENTITY = load_identity(SERVER_BUILD, STATIC_REGISTRY_HASH)
 SERVER_BUILD_HASH = BUILD_IDENTITY.build_hash
@@ -83,7 +83,7 @@ def _servable(model_id: str) -> registry.ModelEntry:
         raise HTTPException(503, f"model {model_id!r} has no weights on this host")
     if model_id not in app.state.available_model_ids:
         raise HTTPException(
-            503, f"model {model_id!r} runtime was unavailable at attestation"
+            503, f"model {model_id!r} runtime is not currently available"
         )
     return entry
 
@@ -147,10 +147,29 @@ async def lifespan(app: FastAPI):
         + SERVER_BUILD_HASH
     ).digest()
     ensure_snp_report(binding)
-    yield
+
+    async def refresh_available_models() -> None:
+        while True:
+            await asyncio.sleep(5)
+            refreshed = await asyncio.gather(
+                *(healthy(model_id) for model_id in sorted(candidates))
+            )
+            app.state.available_model_ids = frozenset(
+                model_id for model_id, ok in refreshed if ok
+            )
+
+    refresh_task = asyncio.create_task(refresh_available_models())
+    try:
+        yield
+    finally:
+        refresh_task.cancel()
+        try:
+            await refresh_task
+        except asyncio.CancelledError:
+            pass
 
 
-app = FastAPI(title="verified-inference", version="0.8.2", lifespan=lifespan)
+app = FastAPI(title="verified-inference", version="0.8.3", lifespan=lifespan)
 app.include_router(access.router)
 
 
