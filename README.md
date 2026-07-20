@@ -21,8 +21,8 @@ Solana devnet, and exposes the results through an API, CLI, report, and browser.
    Caddy and the normal host forwarding path see routing metadata and
    ciphertext, not chat text.
 4. FastAPI and the selected `llama.cpp` or `bitnet.cpp` runtime execute inside
-   the guest. SSH is used only by operators for deployment and maintenance; it
-   is never part of an inference request.
+   a read-only dm-verity guest. The public guest has no SSH service or QEMU
+   monitor; deployment work happens in a separate, non-public builder VM.
 5. The guest signs fixed-size prompt, response, and model hashes. A host relay
    posts those hashes and signature metadata to Solana devnet. Prompt text,
    response text, chat history, and user identity are never posted on-chain.
@@ -34,8 +34,8 @@ and hashing candidate values.
 ## Available routes
 
 - **Open-source models inside the TEE:** end-to-end sealed browser chat,
-  independently checked attestation, and confirmed devnet receipts. The live
-  mutable guest still trusts the operator not to replace its userspace.
+  independently checked measured-boot attestation, immutable code and model
+  volumes, and confirmed devnet receipts.
 - **Open-source models without the TEE:** the same-box performance baseline.
   Transport Layer Security (TLS) protects transport, but the host sees text.
 - **Claude proxy:** measures attested-proxy overhead. Anthropic sees plaintext,
@@ -44,13 +44,15 @@ All five registry models are live inside the 832 GiB SNP guest: BitNet, 8B Q4,
 8B Q8, 70B Q4, and GLM-5.2 Q4. The browser exposes 1,244 unique request records
 plus session measurements.
 
-## Current limitation
+## Current trust boundary
 
-The public guest has a valid SNP launch report, but its userspace is mutable and
-therefore labeled `guest-declared`. It does not yet prove which code and weights
-executed after launch. An isolated dm-verity measured-boot guest passes for
-BitNet; applying that immutable design to the public all-model guest is the main
-production blocker.
+The public guest boots a directly measured kernel and initrd, then mounts its
+root filesystem and both model volumes read-only through dm-verity. Browser
+verification permits one exact `(measurement, build, execution mode)` tuple;
+old mutable builds are not trusted. This proves the approved image booted with
+the declared model bytes. It does not prove model correctness, eliminate CPU
+side channels, or prevent the operator or hosting provider from taking the
+service offline.
 
 The published dataset reports only the configurations that were actually
 measured. It does not extrapolate unmeasured model, context, thread, or

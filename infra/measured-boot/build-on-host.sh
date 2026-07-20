@@ -127,7 +127,11 @@ sudo systemctl --root="$MOUNT" enable \
   vinfer-boot-evidence.service vinfer-model-images.service \
   vinfer-measured-models.service vinfer-measured-origin.service \
   vinfer-measured-proxy.service >/dev/null
-sudo systemctl --root="$MOUNT" disable vinfer-leg-c-proxy.service 2>/dev/null || true
+sudo systemctl --root="$MOUNT" disable vinfer-main.service vinfer-leg-c-proxy.service 2>/dev/null || true
+for unit in vinfer-main.service vinfer-leg-c-proxy.service; do
+  sudo rm -f "$MOUNT/etc/systemd/system/$unit"
+  sudo ln -s /dev/null "$MOUNT/etc/systemd/system/$unit"
+done
 sudo install -D -m 0644 /dev/null "$MOUNT/etc/machine-id"
 sudo install -D -m 0644 /dev/null "$MOUNT/var/lib/dbus/machine-id"
 sudo sync

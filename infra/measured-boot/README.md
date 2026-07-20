@@ -19,3 +19,27 @@ execution_mode)` tuple. A hash in an independently mutable guest is not enough.
 This proves which inspected code and model image could use the attested signing
 key. It does not prove mathematical correctness of every output, eliminate AMD
 or operator availability trust, or prevent all side channels.
+
+## Production operation
+
+`vinfer-measured-vm.service` is the only public TEE VM. It launches the approved
+artifact prefix on loopback ports 8479 and 8482 with all five registry models.
+`vinfer-builder-vm.service` runs the former mutable guest with 64 GiB of memory
+and SSH on loopback port 2223. It is a build source only and is never routed by
+Caddy.
+
+TEE runtime changes are deliberately not hot-restarted from a Git push. CI
+syncs audited source to the host and builder, then reports that a measured image
+promotion is required. Promotion consists of:
+
+1. Build a new, uniquely named artifact prefix with `build-on-host.sh`.
+2. Verify its root and model hashes, then launch it without public traffic.
+3. Verify the SNP report and execution manifest, approve the exact
+   `(measurement, server_build_hash, execution_mode)` tuple, and register the
+   boot key on Solana devnet.
+4. Point `/etc/vinfer/measured-vm` at the approved prefix and restart the
+   production VM service.
+
+The frontend, Caddy, receipt relay, and no-TEE baseline still deploy normally.
+This promotion boundary is required: automatically accepting an arbitrary new
+root hash would make the immutable execution proof meaningless.

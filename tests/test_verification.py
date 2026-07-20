@@ -24,7 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class SnpPolicyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.policy = json.loads((ROOT / "attestation-policy.json").read_text())
-        self.measurement = bytes.fromhex(self.policy["allowed_measurements"][0])
+        approved = self.policy["allowed_builds"][0]
+        self.measurement = bytes.fromhex(approved["measurement"])
         self.report = bytearray(0x4A0)
         struct.pack_into("<I", self.report, 0x00, 5)
         struct.pack_into("<Q", self.report, 0x08, 0x30000)
@@ -34,8 +35,8 @@ class SnpPolicyTests(unittest.TestCase):
         self.report[0x180:0x188] = bytes([0, 1, 0, 2, 0, 0, 0, 71])
         self.doc = {
             "snp_measurement": self.measurement.hex(),
-            "server_build_hash": self.policy["allowed_server_build_hashes"][0],
-            "execution": {"mode": "guest-declared", "manifest": None},
+            "server_build_hash": approved["server_build_hash"],
+            "execution": {"mode": approved["execution_mode"], "manifest": None},
         }
 
     def test_allows_pinned_measurement_vmpl0_and_build(self) -> None:

@@ -69,6 +69,9 @@ jobs:
           if grep -Eq '^(server/|models\.yaml$|attestation-policy\.json$|pyproject\.toml$|uv\.lock$)' "$RUNNER_TEMP/changed-files"; then
             echo 'api=true' >> "$GITHUB_OUTPUT"
           fi
+          if grep -Eq '^(server/|models\.yaml$|attestation-policy\.json$|pyproject\.toml$|uv\.lock$|infra/measured-boot/)' "$RUNNER_TEMP/changed-files"; then
+            echo 'tee_image=true' >> "$GITHUB_OUTPUT"
+          fi
           if grep -Eq '^(models\.yaml$|server/(registry\.py|serve_models\.py|runtimes/))' "$RUNNER_TEMP/changed-files"; then
             echo 'models=true' >> "$GITHUB_OUTPUT"
           fi
@@ -134,8 +137,7 @@ jobs:
       - name: Install service definitions
         if: steps.changes.outputs.units == 'true'
         run: |
-          ssh sunburst-deploy 'sudo install -o root -g root -m 0644 /home/ubuntu/verified-inference/infra/vinfer-leg-a-models.service /home/ubuntu/verified-inference/infra/vinfer-leg-a-origin.service /home/ubuntu/verified-inference/infra/vinfer-receipt-relay.service /etc/systemd/system/ && sudo systemctl daemon-reload'
-          ssh vinfer-guest 'sudo install -o root -g root -m 0644 /home/ubuntu/verified-inference/infra/vinfer-main.service /home/ubuntu/verified-inference/infra/vinfer-leg-c-proxy.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now vinfer-main vinfer-leg-c-proxy'
+          ssh sunburst-deploy 'sudo install -o root -g root -m 0644 /home/ubuntu/verified-inference/infra/vinfer-leg-a-models.service /home/ubuntu/verified-inference/infra/vinfer-leg-a-origin.service /home/ubuntu/verified-inference/infra/vinfer-receipt-relay.service /home/ubuntu/verified-inference/infra/vinfer-measured-vm.service /home/ubuntu/verified-inference/infra/vinfer-builder-vm.service /etc/systemd/system/ && sudo systemctl daemon-reload'
 
       - name: Reload Caddy
         if: steps.changes.outputs.caddy == 'true'
@@ -151,7 +153,11 @@ jobs:
         if: steps.changes.outputs.api == 'true'
         run: |
           ssh sunburst-deploy 'sudo systemctl restart vinfer-receipt-relay vinfer-leg-a-origin'
-          ssh vinfer-guest 'sudo systemctl restart vinfer-main vinfer-leg-c-proxy'
+
+      - name: Report immutable TEE promotion requirement
+        if: steps.changes.outputs.tee_image == 'true'
+        run: |
+          echo '::warning::TEE runtime changes were synced to the non-public builder. Production remains on its approved immutable image until a measured image is built, verified, added to policy, and promoted.'
 
       - name: Verify public routes
         run: |

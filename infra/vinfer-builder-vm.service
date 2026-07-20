@@ -1,0 +1,28 @@
+[Unit]
+Description=Non-public mutable verified-inference image-builder VM
+After=network-online.target vinfer-measured-vm.service
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=root
+Environment=HOME=/home/ubuntu
+Environment=VINFER_ROOT=/home/ubuntu/verified-inference
+Environment=VINFER_VM_DIR=/home/ubuntu/vms
+Environment=VINFER_GLM_VM_NAME=glm-snp
+Environment=VINFER_GLM_CPUS=16
+Environment=VINFER_GLM_RAM=64G
+Environment=VINFER_GLM_SSH_PORT=2223
+Environment=VINFER_GLM_API_PORT=8599
+Environment=VINFER_GLM_PROXY_PORT=8598
+PIDFile=/home/ubuntu/vms/glm-snp.pid
+ExecStart=/home/ubuntu/verified-inference/infra/launch-glm-snp.sh
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=60
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target

@@ -14,8 +14,9 @@
 REPORT_DATA binding (v2) = sha256(enclave_pubkey || registry_hash || build_hash),
 identical shape to the real SNP path so the verify pipeline is exercised end to
 end regardless of grade. The signed report hardware-binds these guest-provided
-values to an SNP launch measurement. With the current mutable guest disk it does
-not independently establish which userspace code or weight bytes executed.
+values to an SNP launch measurement. A guest-declared execution mode does not
+independently establish which userspace code or weight bytes executed; measured
+direct boot plus dm-verity supplies that additional identity.
 """
 
 from __future__ import annotations

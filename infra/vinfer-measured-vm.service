@@ -1,0 +1,29 @@
+[Unit]
+Description=Immutable measured verified-inference production VM
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=root
+Environment=HOME=/home/ubuntu
+Environment=VINFER_ROOT=/home/ubuntu/verified-inference
+Environment=VINFER_VM_DIR=/home/ubuntu/vms
+Environment=VINFER_MEASURED_PREFIX=/home/ubuntu/vms/vinfer-measured-prod
+Environment=VINFER_MEASURED_CPUS=64
+Environment=VINFER_MEASURED_RAM=832G
+Environment=VINFER_MEASURED_API_PORT=8479
+Environment=VINFER_MEASURED_PROXY_PORT=8482
+Environment=VINFER_AVAILABLE_MODELS=bitnet-2b,8b-q4,8b-q8,70b-q4,glm-5.2-q4
+EnvironmentFile=-/etc/vinfer/measured-vm
+PIDFile=/home/ubuntu/vms/vinfer-measured-prod.pid
+ExecStart=/usr/bin/env VINFER_MEASURED_NAME=vinfer-measured-prod /home/ubuntu/verified-inference/infra/measured-boot/launch.sh
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=60
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target

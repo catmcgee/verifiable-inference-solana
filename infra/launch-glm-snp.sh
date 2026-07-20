@@ -12,6 +12,7 @@ CPUS=${VINFER_GLM_CPUS:-64}
 RAM=${VINFER_GLM_RAM:-832G}
 SSH_PORT=${VINFER_GLM_SSH_PORT:-2223}
 API_PORT=${VINFER_GLM_API_PORT:-8479}
+PROXY_PORT=${VINFER_GLM_PROXY_PORT:-8482}
 DISK="$VMS/$NAME.qcow2"
 SEED="$VMS/$NAME-seed.img"
 SMALL_MODELS="$VMS/models.img"
@@ -24,7 +25,7 @@ if pgrep -af qemu-system | grep -F -- "-name $NAME" >/dev/null; then
   echo "$NAME is already running" >&2
   exit 2
 fi
-for port in "$SSH_PORT" "$API_PORT"; do
+for port in "$SSH_PORT" "$API_PORT" "$PROXY_PORT"; do
   if ss -ltn "sport = :$port" | grep -q LISTEN; then
     echo "host port $port is already in use" >&2
     exit 2
@@ -58,7 +59,7 @@ sudo "$QEMU" \
   -drive "file=$SEED,if=virtio,format=raw,readonly=on" \
   -drive "file=$SMALL_MODELS,if=virtio,format=raw,readonly=on" \
   -drive "file=$GLM_MODELS,if=virtio,format=raw,readonly=on" \
-  -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$API_PORT-:8477,hostfwd=tcp:127.0.0.1:8482-:8480" \
+  -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$API_PORT-:8477,hostfwd=tcp:127.0.0.1:$PROXY_PORT-:8480" \
   -device virtio-net-pci,netdev=net0 \
   -display none -serial "file:$VMS/$NAME-serial.log" \
   -monitor "unix:$VMS/$NAME-monitor.sock,server,nowait" \

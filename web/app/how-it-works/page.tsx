@@ -43,8 +43,8 @@ export default function HowItWorksPage() {
               (SEV-SNP). The browser verifies the guest, then encrypts the
               prompt to a boot-generated HPKE key signed by the guest&apos;s boot
               key. The live request path keeps chat text between the browser
-              and the TEE. The current mutable guest still trusts the operator
-              not to replace its software.
+              and the TEE. Measured direct boot and read-only dm-verity volumes
+              bind the live guest to the approved code, runtimes, and weights.
             </p>
           </section>
 
@@ -80,7 +80,7 @@ export default function HowItWorksPage() {
                 className="tee-stage model-stage"
                 tabIndex={0}
                 aria-describedby="tee-stage-help"
-                data-tooltip="Both inference and receipt signing happen inside the same SEV-SNP guest. Measured boot is required before code and weight identity can be independently fixed."
+                data-tooltip="Both inference and receipt signing happen inside the same SEV-SNP guest. Measured boot and dm-verity independently fix its code and weight identity."
               >
                 <span className="stage-kicker">3 · TEE boundary</span>
                 <Box />
@@ -97,7 +97,7 @@ export default function HowItWorksPage() {
                     <span>signs hash-only receipt</span>
                   </div>
                 </div>
-                <span className="sr-only" id="tee-stage-help">Both inference and receipt signing happen inside the same SEV-SNP guest. Measured boot is required before code and weight identity can be independently fixed.</span>
+                <span className="sr-only" id="tee-stage-help">Both inference and receipt signing happen inside the same SEV-SNP guest. Measured boot and dm-verity independently fix its code and weight identity.</span>
               </div>
               <div className="tee-arrow"><span>encrypted</span>→</div>
               <div
@@ -214,7 +214,7 @@ export default function HowItWorksPage() {
               <div>
                 <h3>What it establishes</h3>
                 <p>A specific AMD-protected guest produced a receipt for exact input, output, and model hashes.</p>
-                <p>The console tells you whether code and weight identity is guest-declared or fixed by measured boot.</p>
+                <p>The live public route fixes code and weight identity with measured boot and read-only dm-verity volumes.</p>
               </div>
               <div>
                 <h3>What it does not establish</h3>

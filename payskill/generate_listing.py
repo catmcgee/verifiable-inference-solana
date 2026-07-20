@@ -134,8 +134,9 @@ The live x402 challenge and settlement use the matching model variant above.
 
 The SNP report binds the guest signing key, complete hash-bearing registry
 digest, and build identifier. Runtime availability is reported separately.
-The current mutable guest root means this does not independently
-prove which Python code or model weights executed. Leg C is not exposed here.
+Measured direct boot and read-only dm-verity volumes bind the approved Python
+code, runtimes, and model weights to the attested image. Leg C is not exposed
+here.
 
 Use `vinfer verify <receipt.json>` for the SNP/KDS, key-binding, registry, and
 signature checks. The live origin currently returns confirmed Solana devnet
