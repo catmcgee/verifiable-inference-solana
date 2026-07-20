@@ -10,7 +10,6 @@ import {
   fmtRate,
   trunc,
 } from "@/lib/format";
-import { SERVER } from "@/lib/api";
 import {
   explorerUrl,
   gradeLabel,
@@ -159,15 +158,14 @@ function Attestation({
       {error && !loading && (
         // network failure OR a 5xx from the Next /vinfer proxy both mean the
         // upstream vinfer server is unreachable — show the calm note for both.
-        (error.includes("no route to server") || error.includes("Failed to fetch") ||
+        (error.includes("no route to inference service") || error.includes("Failed to fetch") ||
          /\b5\d\d\b/.test(error)) ? (
           <>
             <div className="p-lede">no server reachable</div>
             <div className="p-detail">
-              Nothing answered at {SERVER}. Attestation renders once a vinfer
-              server is running there — start one, or point
-              NEXT_PUBLIC_VINFER_URL at a running server and restart the web
-              app.
+              Nothing answered. Attestation renders once the inference service
+              is running. If it is remote, point VINFER_ORIGIN_URL at it and
+              restart the web app.
             </div>
           </>
         ) : (

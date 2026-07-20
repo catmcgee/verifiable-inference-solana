@@ -9,7 +9,7 @@ category: ai_ml
 version: v1
 routing:
   type: proxy
-  url: https://verified-inference.213.239.141.40.sslip.io/
+  url: https://vinfer.usefrogpay.com/
   auth:
     method: header
     key: Authorization

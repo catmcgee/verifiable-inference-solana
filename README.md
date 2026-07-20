@@ -6,7 +6,7 @@ with and without a TEE, measures a Claude proxy separately, anchors evidence on
 Solana devnet, and exposes the results through an API, CLI, report, and browser.
 
 - Console: `https://verified-inference.vercel.app`
-- API: `https://verified-inference.213.239.141.40.sslip.io`
+- API: `https://vinfer.usefrogpay.com`
 
 ## How it works
 
@@ -80,7 +80,7 @@ flow passes, but no mainnet gateway or provider listing is published.
 ## Run and verify
 
 ```bash
-export VINFER_URL=https://verified-inference.213.239.141.40.sslip.io
+export VINFER_URL=https://vinfer.usefrogpay.com
 export VINFER_AUTH_TOKEN="strong-gateway-bearer-token"
 export VINFER_ACCESS_CODE="operator-issued-browser-code"
 

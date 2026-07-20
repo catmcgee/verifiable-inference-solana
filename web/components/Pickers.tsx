@@ -56,7 +56,7 @@ export function ModelPicker({
     return (
       <div className="picker-error">
         GET /v1/models failed: {error}. Start the server, or point
-        NEXT_PUBLIC_VINFER_URL at it.
+        VINFER_ORIGIN_URL at it.
       </div>
     );
   }

@@ -1,4 +1,4 @@
-verified-inference.213.239.141.40.sslip.io {
+vinfer.usefrogpay.com {
 	encode zstd gzip
 	@body_too_large header_regexp Content-Length ^[0-9]{7,}$
 	respond @body_too_large "request body too large" 413
@@ -29,8 +29,4 @@ verified-inference.213.239.141.40.sslip.io {
 		Referrer-Policy "no-referrer"
 		-Server
 	}
-}
-
-console.213.239.141.40.sslip.io {
-	redir https://verified-inference.vercel.app{uri} permanent
 }

@@ -2,13 +2,10 @@
 // Canonical surface (fixed): POST /v1/chat/completions · GET /v1/models ·
 // GET /v1/attestation · GET /v1/receipts/{id}.
 //
-// Browser requests go same-origin to /vinfer/* — next.config.ts rewrites them
-// to NEXT_PUBLIC_VINFER_URL, so the FastAPI server needs no CORS config.
+// Browser requests go same-origin to /vinfer/*. next.config.ts rewrites them
+// server-side, so the FastAPI server needs no CORS configuration.
 
 import { createSealedSession, type SealedPayload } from "@/lib/e2e";
-
-export const SERVER =
-  process.env.NEXT_PUBLIC_VINFER_URL ?? "http://127.0.0.1:8477";
 
 const BASE = "/vinfer";
 export type LiveLeg = "A" | "B" | "C";
@@ -156,7 +153,7 @@ async function request<T>(
       ...init,
     });
   } catch {
-    throw new Error(`no route to server (${SERVER})`);
+    throw new Error("no route to inference service");
   }
   if (!res.ok) throw await responseError(res);
   return res.json() as Promise<T>;
@@ -240,7 +237,7 @@ export async function postChatStream(
       body: JSON.stringify({ model, messages, max_tokens, stream: true }),
     });
   } catch {
-    throw new Error(`no route to server (${SERVER})`);
+    throw new Error("no route to inference service");
   }
   if (!res.ok) throw await responseError(res);
   let final: ChatResponse | null = null;
@@ -311,7 +308,7 @@ export async function postChatE2E(
       }),
     });
   } catch {
-    throw new Error(`no route to server (${SERVER})`);
+    throw new Error("no route to inference service");
   }
   if (!res.ok) throw await responseError(res);
   const decoder = new TextDecoder();

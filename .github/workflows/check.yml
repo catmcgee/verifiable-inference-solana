@@ -155,6 +155,6 @@ jobs:
 
       - name: Verify public routes
         run: |
-          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://verified-inference.213.239.141.40.sslip.io/v1/models >/dev/null
-          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://verified-inference.213.239.141.40.sslip.io/vinfer-a/v1/models >/dev/null
-          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://verified-inference.213.239.141.40.sslip.io/vinfer-c/v1/models >/dev/null
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/v1/models >/dev/null
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/vinfer-a/v1/models >/dev/null
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/vinfer-c/v1/models >/dev/null

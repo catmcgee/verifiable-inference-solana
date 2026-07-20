@@ -10,7 +10,6 @@ import {
   getModels,
   postChatE2E,
   postChatStream,
-  SERVER,
   type AttestationDoc,
   type AuthSession,
   type Metrics,
@@ -325,7 +324,7 @@ export default function Page() {
 
   return (
     <div className="frame">
-      <Masthead active="console" detail={SERVER} />
+      <Masthead active="console" />
 
       <div className="pickerbar">
         <div className="picker-row">

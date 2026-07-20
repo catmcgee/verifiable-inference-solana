@@ -24,11 +24,6 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-        launchOptions: {
-          args: [
-            "--host-resolver-rules=MAP console.213.239.141.40.sslip.io 213.239.141.40",
-          ],
-        },
       },
     },
   ],
