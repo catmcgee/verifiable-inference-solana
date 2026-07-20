@@ -90,4 +90,4 @@ check: test-python verify-registry check-generated
 	npm --prefix solana run lint
 
 solana-test:
-	cd solana && anchor test
+	cd solana && anchor test --validator legacy
