@@ -42,7 +42,7 @@ jobs:
       - run: cargo install --locked anchor-cli@1.0.2
       - run: sh -c "$(curl -sSfL https://release.anza.xyz/v4.0.0-rc.0/install)"
       - run: echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
-      - run: solana-keygen new --no-bip39-passphrase --silent --force --outfile "$RUNNER_TEMP/anchor-wallet.json"
+      - run: |
+          mkdir -p "$HOME/.config/solana"
+          solana-keygen new --no-bip39-passphrase --silent --force --outfile "$HOME/.config/solana/id.json"
       - run: make solana-test
-        env:
-          ANCHOR_WALLET: ${{ runner.temp }}/anchor-wallet.json
