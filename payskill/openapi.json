@@ -116,21 +116,6 @@
   },
   "components": {
     "schemas": {
-      "AuthSessionRequest": {
-        "properties": {
-          "access_code": {
-            "type": "string",
-            "maxLength": 512,
-            "minLength": 1,
-            "title": "Access Code"
-          }
-        },
-        "type": "object",
-        "required": [
-          "access_code"
-        ],
-        "title": "AuthSessionRequest"
-      },
       "ChatRequest": {
         "properties": {
           "model": {
@@ -151,7 +136,7 @@
           },
           "max_tokens": {
             "type": "integer",
-            "maximum": 131072.0,
+            "maximum": 8192.0,
             "minimum": 1.0,
             "title": "Max Tokens",
             "default": 256
@@ -181,75 +166,6 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
-      },
-      "InferRequest": {
-        "properties": {
-          "model": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Model"
-          },
-          "prompt": {
-            "type": "string",
-            "maxLength": 524288,
-            "title": "Prompt"
-          },
-          "max_tokens": {
-            "type": "integer",
-            "maximum": 4096.0,
-            "minimum": 1.0,
-            "title": "Max Tokens",
-            "default": 64
-          }
-        },
-        "type": "object",
-        "required": [
-          "model",
-          "prompt"
-        ],
-        "title": "InferRequest"
-      },
-      "SealedInferRequest": {
-        "properties": {
-          "model": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Model"
-          },
-          "enc": {
-            "type": "string",
-            "maxLength": 256,
-            "minLength": 1,
-            "title": "Enc"
-          },
-          "ciphertext": {
-            "type": "string",
-            "maxLength": 900000,
-            "minLength": 1,
-            "title": "Ciphertext"
-          },
-          "max_tokens": {
-            "type": "integer",
-            "maximum": 4096.0,
-            "minimum": 1.0,
-            "title": "Max Tokens",
-            "default": 64
-          },
-          "stream": {
-            "type": "boolean",
-            "title": "Stream",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "model",
-          "enc",
-          "ciphertext"
-        ],
-        "title": "SealedInferRequest"
       },
       "ValidationError": {
         "properties": {

@@ -14,7 +14,7 @@ cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+idl-build = ["anchor-lang/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
@@ -22,7 +22,6 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = "1.0.2"
-anchor-spl = { version = "1.0.2", default-features = false, features = ["token", "token_2022"] }
 # Modular SDK crates (same versions anchor-lang itself depends on):
 # anchor-lang 1.x no longer re-exports the instructions-sysvar load helpers
 # or the ed25519 program id, so we take them directly.

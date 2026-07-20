@@ -26,4 +26,23 @@ jobs:
       - run: uv sync --locked
       - run: npm ci --prefix web
       - run: npm ci --prefix solana
+      - run: npx --prefix web playwright install --with-deps chromium
       - run: make check
+
+  solana:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: solana/package-lock.json
+      - run: npm ci --prefix solana
+      - run: cargo install --locked anchor-cli@1.0.2
+      - run: sh -c "$(curl -sSfL https://release.anza.xyz/v4.0.0-rc.0/install)"
+      - run: echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - run: solana-keygen new --no-bip39-passphrase --silent --force --outfile "$RUNNER_TEMP/anchor-wallet.json"
+      - run: make solana-test
+        env:
+          ANCHOR_WALLET: ${{ runner.temp }}/anchor-wallet.json

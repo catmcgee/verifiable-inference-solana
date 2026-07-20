@@ -5,4 +5,4 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 THREADS=${1:-64}
 cd "$ROOT"
-exec uv run python -m server.launch --threads "$THREADS"
+exec uv run python -m server.serve_models --threads "$THREADS"

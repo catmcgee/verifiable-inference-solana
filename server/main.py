@@ -1,9 +1,9 @@
 """verified-inference server.
 
 Registry-driven (models.yaml is the single source of truth).
-Canonical surface: POST /v1/chat/completions · GET /v1/models · GET
-/v1/attestation · GET /v1/receipts/{id}. POST /v1/infer is the raw-prompt
-harness surface. Serves real models from models.yaml.
+Canonical surfaces: POST /v1/chat/completions for TLS chat and POST
+/v1/chat_e2e for attestation-gated sealed chat. Serves real models from
+models.yaml.
 """
 
 from __future__ import annotations
@@ -17,21 +17,21 @@ import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 import httpx
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError
 
-from server import access, registry, runtimes
+from server import access, openai, registry, runtimes
 from server.attest.report import build_attestation
 from server.execution import load_identity
 from server.receipts.request_hash import canonical_request
+from server.receipts.issue import issue_receipt
 from server.receipts.signer import EnclaveSigner
-from server.receipts.solana import attestation_pda
 from server.receipts.store import ReceiptStore
 from server.request_validation import (
+    ChatRequest,
     MAX_CIPHERTEXT_CHARS,
-    MAX_MESSAGES,
-    validate_messages,
+    MAX_OUTPUT_TOKENS,
 )
 
 BACKEND = "llama"
@@ -92,42 +92,8 @@ def model_weights_hash(model_id: str) -> bytes:
     return _servable(model_id).weights_hash
 
 
-def _canonical_raw_request(model: str, prompt: str, max_tokens: int) -> bytes:
-    return canonical_request(
-        endpoint="raw-prompt",
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-    )
-
-
-async def _generate(model_id: str, prompt: str, max_tokens: int) -> dict:
-    runtime = runtimes.for_model(_servable(model_id))
-    result = await runtime.generate(prompt, max_tokens)
-    if "usage" not in result:
-        prompt_tokens = len(await runtime.tokenize(prompt))
-        completion_tokens = result["metrics"].get("output_tokens")
-        if type(completion_tokens) is not int or completion_tokens < 0:
-            raise RuntimeError("runtime returned an invalid output token count")
-        result["usage"] = {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": prompt_tokens + completion_tokens,
-        }
-    return result
-
-
 async def _chat(model_id: str, messages: list[dict], max_tokens: int) -> dict:
     return await runtimes.for_model(_servable(model_id)).chat(messages, max_tokens)
-
-
-def _sse(payload: dict | str) -> str:
-    value = (
-        payload
-        if isinstance(payload, str)
-        else json.dumps(payload, separators=(",", ":"))
-    )
-    return f"data: {value}\n\n"
 
 
 @asynccontextmanager
@@ -185,25 +151,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="verified-inference", version="0.8.2", lifespan=lifespan)
-
-
-class InferRequest(BaseModel):
-    model: str = Field(min_length=1, max_length=128)
-    prompt: str = Field(max_length=524_288)
-    max_tokens: int = Field(default=64, ge=1, le=4096)
-
-
-class ChatRequest(BaseModel):
-    model: str = Field(min_length=1, max_length=128)
-    messages: list[dict] = Field(min_length=1, max_length=MAX_MESSAGES)
-    max_tokens: int = Field(default=256, ge=1, le=131072)
-    stream: bool = False
-
-    _validate_messages = field_validator("messages")(validate_messages)
-
-
-class AuthSessionRequest(BaseModel):
-    access_code: str = Field(min_length=1, max_length=512)
+app.include_router(access.router)
 
 
 @app.get("/healthz")
@@ -254,92 +202,18 @@ async def attestation():
     return _attestation_doc()
 
 
-@app.get("/v1/auth/session", summary="Check browser test-session status")
-async def auth_session_status(request: Request):
-    config = access.settings()
-    mode = access.access_mode(request)
-    return JSONResponse(
-        content={
-            "required": config.required,
-            "authenticated": mode is not None,
-            "mode": mode,
-        },
-        headers={"Cache-Control": "no-store, private"},
-    )
-
-
-@app.post("/v1/auth/session", summary="Create a browser test session")
-async def auth_session_create(req: AuthSessionRequest):
-    if not access.access_code_valid(req.access_code):
-        return JSONResponse(
-            status_code=401,
-            content={"error": "invalid access code"},
-            headers={"Cache-Control": "no-store, private"},
-        )
-    response = JSONResponse(
-        content={"required": access.settings().required, "authenticated": True},
-        headers={"Cache-Control": "no-store, private"},
-    )
-    access.set_session_cookie(response)
-    return response
-
-
-@app.delete("/v1/auth/session", summary="End a browser test session")
-async def auth_session_delete():
-    response = JSONResponse(
-        content={"authenticated": False},
-        headers={"Cache-Control": "no-store, private"},
-    )
-    access.clear_session_cookie(response)
-    return response
-
-
-class SealedInferRequest(BaseModel):
+class SealedChatRequest(BaseModel):
     model: str = Field(min_length=1, max_length=128)
     enc: str = Field(min_length=1, max_length=256)  # HPKE encapsulated key (base64)
     ciphertext: str = Field(
         min_length=1, max_length=MAX_CIPHERTEXT_CHARS
     )  # HPKE-sealed prompt (base64)
-    max_tokens: int = Field(default=64, ge=1, le=4096)
+    max_tokens: int = Field(default=256, ge=1, le=MAX_OUTPUT_TOKENS)
     stream: bool = False
 
 
-@app.post("/v1/infer_sealed", summary="Run inference with an HPKE-sealed prompt")
-async def infer_sealed(req: SealedInferRequest, request: Request):
-    """input_mode=hpke: prompt arrives encrypted to the enclave HPKE key and is
-    decrypted here (inside the enclave), never visible to a TLS-terminating proxy."""
-    access_mode, err = access.require(request)
-    if err is not None:
-        return err
-    t0 = time.perf_counter()
-    try:
-        prompt = app.state.hpke.open(req.enc, req.ciphertext).decode()
-    except Exception:
-        raise HTTPException(
-            400, "HPKE decrypt failed (wrong key or tampered ciphertext)"
-        )
-    decrypt_ms = round((time.perf_counter() - t0) * 1000.0, 3)
-    _servable(req.model)
-    result = await _generate(req.model, prompt, req.max_tokens)
-    result["metrics"]["hpke_decrypt_ms"] = decrypt_ms
-    result["metrics"]["e2e_ms"] = round(result["metrics"]["e2e_ms"] + decrypt_ms, 3)
-    result["metrics"]["input_mode"] = "hpke"
-    settlement = {"metered": False, "access": access_mode}
-    receipt = await _sign(
-        _canonical_raw_request(req.model, prompt, req.max_tokens),
-        result["text"],
-        req.model,
-        result["metrics"],
-        app.state.receipts,
-    )
-    return _completion_response(
-        {"model": req.model, **result, "receipt": receipt, "settlement": settlement},
-        receipt,
-    )
-
-
 @app.post("/v1/chat_e2e")
-async def chat_e2e(req: SealedInferRequest, request: Request):
+async def chat_e2e(req: SealedChatRequest, request: Request):
     """Attestation-gated end-to-end sealed session: prompt AND response are
     encrypted under an HPKE-exporter session key bound to the enclave key the
     client verified from the attestation. The operator sees ciphertext both ways.
@@ -365,21 +239,24 @@ async def chat_e2e(req: SealedInferRequest, request: Request):
         payload = json.loads(plaintext)
     except json.JSONDecodeError:
         payload = None
-    messages = None
-    if (
-        isinstance(payload, dict)
-        and payload.get("schema") == "vinfer-e2e-chat-v1"
-        and isinstance(payload.get("messages"), list)
-    ):
-        messages = payload["messages"]
-        request_preimage = canonical_request(
-            endpoint="openai-chat-completions",
+    if not isinstance(payload, dict) or payload.get("schema") != "vinfer-e2e-chat-v1":
+        raise HTTPException(400, "sealed payload must contain a v1 chat")
+    try:
+        inner_request = ChatRequest(
             model=req.model,
-            messages=messages,
+            messages=payload.get("messages"),
             max_tokens=req.max_tokens,
+            stream=req.stream,
         )
-    else:
-        request_preimage = _canonical_raw_request(req.model, plaintext, req.max_tokens)
+    except ValidationError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    messages = inner_request.messages
+    request_preimage = canonical_request(
+        endpoint="openai-chat-completions",
+        model=req.model,
+        messages=messages,
+        max_tokens=req.max_tokens,
+    )
     settlement = {"metered": False, "access": access_mode}
 
     async def seal_result(result: dict) -> dict:
@@ -408,7 +285,7 @@ async def chat_e2e(req: SealedInferRequest, request: Request):
             "settlement": settlement,
         }
 
-    if req.stream and messages is not None:
+    if req.stream:
 
         async def event_stream():
             result = None
@@ -416,35 +293,25 @@ async def chat_e2e(req: SealedInferRequest, request: Request):
                 messages, req.max_tokens
             ):
                 if event["type"] == "token":
-                    yield _sse(
+                    yield openai.sse(
                         {"sealed_delta": sess.seal_response(event["text"].encode())}
                     )
                 else:
                     result = event["result"]
             if result is None:
                 raise RuntimeError("runtime stream ended without a result")
-            yield _sse(await seal_result(result))
-            yield _sse("[DONE]")
+            yield openai.sse(await seal_result(result))
+            yield openai.sse("[DONE]")
 
         return StreamingResponse(
             event_stream(),
             media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-store, no-transform, private",
-                "X-Accel-Buffering": "no",
-            },
+            headers=openai.STREAM_HEADERS,
         )
 
-    result = (
-        await _chat(req.model, messages, req.max_tokens)
-        if messages is not None
-        else await _generate(req.model, plaintext, req.max_tokens)
-    )
+    result = await _chat(req.model, messages, req.max_tokens)
     body = await seal_result(result)
-    return _completion_response(
-        body,
-        body["receipt"],
-    )
+    return openai.response_with_receipt(body, body["receipt"])
 
 
 async def _sign(
@@ -454,56 +321,15 @@ async def _sign(
     metrics: dict,
     receipts: ReceiptStore,
 ) -> dict:
-    t0 = time.perf_counter()
-    try:
-        receipt = app.state.signer.sign_receipt(
-            prompt, text, model_weights_hash(model_id)
-        )
-    finally:
-        metrics["receipt_sign_ms"] = round((time.perf_counter() - t0) * 1000.0, 3)
-    # Embed the attestation doc the receipt was issued under, so the receipt is
-    # self-verifiable offline (`vinfer verify` checks it, then cross-anchors it
-    # against the on-chain PDA). No HPKE extras — just the binding fields.
-    receipt["attestation"] = _attestation_doc()
-    receipt["attestation_pda"] = attestation_pda(receipt["enclave_pubkey_b64"])
-    receipt["onchain_status"] = "not-posted"
-    metrics.setdefault("receipt_post_ms", 0)
-    metrics.setdefault("receipt_confirm_ms", 0)
-    metrics.setdefault("solana_cu", 0)
-    metrics.setdefault("solana_fee_lamports", 0)
-    try:
-        from server.receipts.relay_client import post_receipt
-
-        posted = await post_receipt(receipt)
-        if posted:
-            receipt.update(
-                {
-                    key: posted[key]
-                    for key in (
-                        "onchain_status",
-                        "receipt_index",
-                        "receipt_pda",
-                        "receipt_tx",
-                    )
-                }
-            )
-            for key in (
-                "receipt_post_ms",
-                "receipt_confirm_ms",
-                "solana_cu",
-                "solana_fee_lamports",
-            ):
-                metrics[key] = posted[key]
-    except Exception as exc:  # noqa: BLE001
-        import logging
-
-        logging.getLogger("vinfer").warning(
-            "receipt relay failed for receipt_id=%s (%s)",
-            receipt["receipt_id"],
-            type(exc).__name__,
-        )
-    receipts[receipt["receipt_id"]] = receipt
-    return receipt
+    return await issue_receipt(
+        signer=app.state.signer,
+        prompt=prompt,
+        text=text,
+        model_hash=model_weights_hash(model_id),
+        metrics=metrics,
+        attestation=_attestation_doc,
+        receipts=receipts,
+    )
 
 
 @app.post("/v1/chat/completions", summary="Generate an attested chat completion")
@@ -527,20 +353,10 @@ async def chat_completions(req: ChatRequest, request: Request):
                 req.messages, req.max_tokens
             ):
                 if event["type"] == "token":
-                    yield _sse(
-                        {
-                            "id": completion_id,
-                            "object": "chat.completion.chunk",
-                            "created": int(time.time()),
-                            "model": req.model,
-                            "choices": [
-                                {
-                                    "index": 0,
-                                    "finish_reason": None,
-                                    "delta": {"content": event["text"]},
-                                }
-                            ],
-                        }
+                    yield openai.sse(
+                        openai.stream_chunk(
+                            completion_id, req.model, content=event["text"]
+                        )
                     )
                 else:
                     result = event["result"]
@@ -554,93 +370,48 @@ async def chat_completions(req: ChatRequest, request: Request):
                 result["metrics"],
                 app.state.receipts,
             )
-            yield _sse(
-                {
-                    "id": completion_id,
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": req.model,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "finish_reason": result.get("finish_reason", "stop"),
-                            "delta": {},
-                        }
-                    ],
-                    "usage": result["usage"],
-                    "x_vinfer": {
+            yield openai.sse(
+                openai.stream_chunk(
+                    completion_id,
+                    req.model,
+                    finish_reason=result.get("finish_reason", "stop"),
+                    usage=result["usage"],
+                    extension={
                         "metrics": result["metrics"],
                         "receipt": receipt,
                         "registry_hash": _registry_hash().hex(),
                         "attestation_grade": receipt["attestation"]["grade"],
                         "settlement": settlement,
                     },
-                }
+                )
             )
-            yield _sse("[DONE]")
+            yield openai.sse("[DONE]")
 
         return StreamingResponse(
             event_stream(),
             media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-store, no-transform, private",
-                "X-Accel-Buffering": "no",
-            },
+            headers=openai.STREAM_HEADERS,
         )
     result = await _chat(req.model, req.messages, req.max_tokens)
     settlement = {"metered": False, "access": access_mode}
     receipt = await _sign(
         prompt_repr, result["text"], req.model, result["metrics"], app.state.receipts
     )
-    resp = {
-        "id": f"chatcmpl-{uuid.uuid4().hex[:20]}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": req.model,
-        "choices": [
-            {
-                "index": 0,
-                "finish_reason": result.get("finish_reason", "stop"),
-                "message": {"role": "assistant", "content": result["text"]},
-            }
-        ],
-        "usage": result["usage"],
-        "x_vinfer": {
+    resp = openai.completion_body(
+        f"chatcmpl-{uuid.uuid4().hex[:20]}",
+        req.model,
+        result["text"],
+        result.get("finish_reason", "stop"),
+        result["usage"],
+        {
             "metrics": result["metrics"],
             "receipt": receipt,
             "registry_hash": _registry_hash().hex(),
             "attestation_grade": receipt["attestation"]["grade"],
             "settlement": settlement,
         },
-    }
-    return _completion_response(resp, receipt)
-
-
-@app.post("/v1/infer")
-async def infer(req: InferRequest, request: Request):
-    """Raw-prompt alias of the canonical surface (harness/bench path)."""
-    _servable(req.model)
-    access_mode, err = access.require(request)
-    if err is not None:
-        return err
-    result = await _generate(req.model, req.prompt, req.max_tokens)
-    settlement = {"metered": False, "access": access_mode}
-    receipt = await _sign(
-        _canonical_raw_request(req.model, req.prompt, req.max_tokens),
-        result["text"],
-        req.model,
-        result["metrics"],
-        app.state.receipts,
     )
-    return _completion_response(
-        {"model": req.model, **result, "receipt": receipt, "settlement": settlement},
-        receipt,
-    )
-
-
-def _completion_response(body: dict, receipt: dict) -> JSONResponse:
-    headers = {"X-Vinfer-Receipt-Id": receipt["receipt_id"]}
-    return JSONResponse(content=body, headers=headers)
+    return openai.response_with_receipt(resp, receipt)
 
 
 @app.get("/v1/receipts/{receipt_id}", summary="Fetch a signed inference receipt")

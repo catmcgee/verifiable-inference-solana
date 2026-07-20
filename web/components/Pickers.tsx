@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { ModelInfo } from "@/lib/api";
+import type { LiveLeg, ModelInfo } from "@/lib/api";
 import { fmtPrice } from "@/lib/format";
 import { LEGS } from "@/lib/labels";
 
@@ -10,8 +10,8 @@ export function LegPicker({
   onChange,
   disabled = false,
 }: {
-  leg: string;
-  onChange: (leg: string) => void;
+  leg: LiveLeg;
+  onChange: (leg: LiveLeg) => void;
   disabled?: boolean;
 }) {
   const selectedRef = useRef<HTMLButtonElement>(null);

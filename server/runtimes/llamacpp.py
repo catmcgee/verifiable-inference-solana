@@ -17,32 +17,12 @@ import httpx
 from server.runtimes.base import Runtime
 
 SEV_MODE = os.environ.get("VINFER_SEV_MODE", "off")
-
-
-def _finish(t_start: float, token_times: list[float], text: str, engine: dict) -> dict:
-    if not token_times:
-        raise RuntimeError("no tokens from llama-server")
-    itls = [
-        (token_times[i] - token_times[i - 1]) * 1000.0
-        for i in range(1, len(token_times))
-    ] or [0.0]
-    it = sorted(itls)
-    gen_s = token_times[-1] - token_times[0]
-    n = len(token_times)
-    return {
-        "text": text,
-        "metrics": {
-            "ttft_ms": round((token_times[0] - t_start) * 1000.0, 3),
-            "itl_ms_p50": round(it[len(it) // 2], 3),
-            "itl_ms_p99": round(it[min(len(it) - 1, int(len(it) * 0.99))], 3),
-            "tokens_per_s": round((n - 1) / gen_s, 3) if gen_s > 0 else 0.0,
-            "e2e_ms": round((token_times[-1] - t_start) * 1000.0, 3),
-            "output_tokens": n,
-            "sev_mode": SEV_MODE,
-            "backend": "llama",
-            "engine_timings": engine,
-        },
-    }
+BITNET_CHAT_TEMPLATE = """{% set loop_messages = messages %}
+{% for message in loop_messages %}
+{% set content = message['role'] | capitalize + ': ' + message['content'] | trim + '<|eot_id|>' %}
+{{ content }}
+{% endfor %}
+{% if add_generation_prompt %}{{ 'Assistant: ' }}{% endif %}"""
 
 
 def _validated_usage(value: object) -> dict:
@@ -69,9 +49,31 @@ def _finish_chat(
 ) -> dict:
     usage = _validated_usage(usage_value)
     if token_times:
-        out = _finish(t_start, token_times, text, engine)
-        # Streaming deltas are text chunks, not necessarily one token each.
-        out["metrics"]["output_tokens"] = usage["completion_tokens"]
+        itls = sorted(
+            (token_times[index] - token_times[index - 1]) * 1000.0
+            for index in range(1, len(token_times))
+        ) or [0.0]
+        generation_s = token_times[-1] - token_times[0]
+        out = {
+            "text": text,
+            "metrics": {
+                "ttft_ms": round((token_times[0] - t_start) * 1000.0, 3),
+                "itl_ms_p50": round(itls[len(itls) // 2], 3),
+                "itl_ms_p99": round(
+                    itls[min(len(itls) - 1, int(len(itls) * 0.99))], 3
+                ),
+                "tokens_per_s": round(
+                    max(0, usage["completion_tokens"] - 1) / generation_s, 3
+                )
+                if generation_s > 0
+                else 0.0,
+                "e2e_ms": round((token_times[-1] - t_start) * 1000.0, 3),
+                "output_tokens": usage["completion_tokens"],
+                "sev_mode": SEV_MODE,
+                "backend": "llama",
+                "engine_timings": engine,
+            },
+        }
     else:
         out = {
             "text": text,
@@ -110,62 +112,8 @@ class LlamaCppRuntime(Runtime):
             response = await client.get(f"{self._base}/health")
             response.raise_for_status()
 
-    async def tokenize(self, text: str) -> list[int]:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                f"{self._base}/tokenize", json={"content": text, "add_special": True}
-            )
-            response.raise_for_status()
-        tokens = response.json().get("tokens")
-        if not isinstance(tokens, list) or not all(
-            isinstance(token, int) for token in tokens
-        ):
-            raise RuntimeError("llama-server returned an invalid tokenize response")
-        return tokens
-
-    async def stream_generate(
-        self, prompt: str, max_tokens: int
-    ) -> AsyncIterator[dict]:
-        t0 = time.perf_counter()
-        times: list[float] = []
-        parts: list[str] = []
-        engine: dict = {}
-        async with httpx.AsyncClient(timeout=None) as c:
-            async with c.stream(
-                "POST",
-                f"{self._base}/completion",
-                json={
-                    "prompt": prompt,
-                    "n_predict": max_tokens,
-                    "stream": True,
-                    "cache_prompt": False,
-                    "temperature": 0.7,
-                },
-            ) as r:
-                r.raise_for_status()
-                async for line in r.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    d = json.loads(line[6:])
-                    if d.get("content"):
-                        times.append(time.perf_counter())
-                        parts.append(d["content"])
-                        yield {"type": "token", "text": d["content"]}
-                    if d.get("stop"):
-                        engine = d.get("timings", {})
-        yield {"type": "done", "result": _finish(t0, times, "".join(parts), engine)}
-
-    async def chat(self, messages: list[dict], max_tokens: int) -> dict:
-        result = None
-        async for event in self.chat_stream(messages, max_tokens):
-            if event["type"] == "done":
-                result = event["result"]
-        if result is None:
-            raise RuntimeError("llama-server stream ended without final metrics")
-        return result
-
     def _chat_payload(self, messages: list[dict], max_tokens: int) -> dict:
-        return {
+        payload = {
             "model": self.entry.id,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -175,6 +123,17 @@ class LlamaCppRuntime(Runtime):
             # surface. Return visible assistant content consistently.
             "chat_template_kwargs": {"enable_thinking": False},
         }
+        if self.entry.chat_template == "bitnet":
+            payload.update(
+                {
+                    "chat_template": BITNET_CHAT_TEMPLATE,
+                    "temperature": 0.6,
+                    "top_p": 0.9,
+                    "repeat_penalty": 1.15,
+                    "stop": ["<|eot_id|>", "\nUser:", "\nHuman:"],
+                }
+            )
+        return payload
 
     async def chat_stream(
         self, messages: list[dict], max_tokens: int

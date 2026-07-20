@@ -17,18 +17,16 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field, field_validator
+from fastapi.responses import StreamingResponse
 
-from server import access, registry
+from server import access, openai, registry
 from server.attest.report import build_attestation, ensure_snp_report
 from server.execution import load_identity
-from server.receipts.relay_client import post_receipt
+from server.receipts.issue import issue_receipt
 from server.receipts.request_hash import canonical_request
 from server.receipts.signer import EnclaveSigner
-from server.receipts.solana import attestation_pda
 from server.receipts.store import ReceiptStore
-from server.request_validation import MAX_MESSAGES, validate_messages
+from server.request_validation import ChatRequest
 
 
 UPSTREAM = "https://api.anthropic.com/v1/messages"
@@ -48,28 +46,6 @@ REGISTRY = [
 REGISTRY_HASH = registry.pairs_hash(REGISTRY)
 BUILD_IDENTITY = load_identity(PROXY_BUILD, REGISTRY_HASH)
 PROXY_BUILD_HASH = BUILD_IDENTITY.build_hash
-
-
-class ChatRequest(BaseModel):
-    model: str = Field(min_length=1, max_length=128)
-    messages: list[dict] = Field(min_length=1, max_length=MAX_MESSAGES)
-    max_tokens: int = Field(default=256, ge=1, le=8192)
-    stream: bool = False
-
-    _validate_messages = field_validator("messages")(validate_messages)
-
-
-class AuthSessionRequest(BaseModel):
-    access_code: str = Field(min_length=1, max_length=512)
-
-
-def _sse(payload: dict | str) -> str:
-    value = (
-        payload
-        if isinstance(payload, str)
-        else json.dumps(payload, separators=(",", ":"))
-    )
-    return f"data: {value}\n\n"
 
 
 def _attestation_doc(app: FastAPI) -> dict:
@@ -121,6 +97,7 @@ app = FastAPI(
     openapi_url=None,
     lifespan=lifespan,
 )
+app.include_router(access.router)
 
 
 @app.get("/healthz")
@@ -160,42 +137,6 @@ async def models() -> dict:
 @app.get("/v1/attestation")
 async def attestation() -> dict:
     return _attestation_doc(app)
-
-
-@app.get("/v1/auth/session")
-async def auth_session_status(request: Request):
-    config = access.settings()
-    mode = access.access_mode(request)
-    return JSONResponse(
-        {"required": config.required, "authenticated": mode is not None, "mode": mode},
-        headers={"Cache-Control": "no-store, private"},
-    )
-
-
-@app.post("/v1/auth/session")
-async def auth_session_create(req: AuthSessionRequest):
-    if not access.access_code_valid(req.access_code):
-        return JSONResponse(
-            status_code=401,
-            content={"error": "invalid access code"},
-            headers={"Cache-Control": "no-store, private"},
-        )
-    response = JSONResponse(
-        {"required": access.settings().required, "authenticated": True},
-        headers={"Cache-Control": "no-store, private"},
-    )
-    access.set_session_cookie(response)
-    return response
-
-
-@app.delete("/v1/auth/session")
-async def auth_session_delete():
-    response = JSONResponse(
-        {"authenticated": False},
-        headers={"Cache-Control": "no-store, private"},
-    )
-    access.clear_session_cookie(response)
-    return response
 
 
 async def _upstream_events(req: ChatRequest):
@@ -254,43 +195,15 @@ def _metrics(start: float, times: list[float], usage: dict) -> dict:
 
 
 async def _receipt(prompt: bytes, text: str, metrics: dict) -> dict:
-    start = time.perf_counter()
-    receipt = app.state.signer.sign_receipt(
-        prompt, text, bytes.fromhex(MODEL_DECLARATION_HASH)
+    return await issue_receipt(
+        signer=app.state.signer,
+        prompt=prompt,
+        text=text,
+        model_hash=bytes.fromhex(MODEL_DECLARATION_HASH),
+        metrics=metrics,
+        attestation=lambda: _attestation_doc(app),
+        receipts=app.state.receipts,
     )
-    metrics["receipt_sign_ms"] = round((time.perf_counter() - start) * 1000, 3)
-    receipt["attestation"] = _attestation_doc(app)
-    receipt["attestation_pda"] = attestation_pda(receipt["enclave_pubkey_b64"])
-    receipt["onchain_status"] = "not-posted"
-    for key in (
-        "receipt_post_ms",
-        "receipt_confirm_ms",
-        "solana_cu",
-        "solana_fee_lamports",
-    ):
-        metrics[key] = 0
-    try:
-        posted = await post_receipt(receipt)
-        if posted:
-            for key in ("onchain_status", "receipt_index", "receipt_pda", "receipt_tx"):
-                receipt[key] = posted[key]
-            for key in (
-                "receipt_post_ms",
-                "receipt_confirm_ms",
-                "solana_cu",
-                "solana_fee_lamports",
-            ):
-                metrics[key] = posted[key]
-    except Exception as exc:  # noqa: BLE001
-        import logging
-
-        logging.getLogger("vinfer").warning(
-            "leg C receipt relay failed for receipt_id=%s (%s)",
-            receipt["receipt_id"],
-            type(exc).__name__,
-        )
-    app.state.receipts[receipt["receipt_id"]] = receipt
-    return receipt
 
 
 @app.post("/v1/chat/completions")
@@ -331,20 +244,10 @@ async def chat_completions(req: ChatRequest, request: Request):
                         parts.append(text)
                         times.append(time.perf_counter())
                         if req.stream:
-                            yield _sse(
-                                {
-                                    "id": completion_id,
-                                    "object": "chat.completion.chunk",
-                                    "created": int(time.time()),
-                                    "model": CLAUDE_MODEL,
-                                    "choices": [
-                                        {
-                                            "index": 0,
-                                            "finish_reason": None,
-                                            "delta": {"content": text},
-                                        }
-                                    ],
-                                }
+                            yield openai.sse(
+                                openai.stream_chunk(
+                                    completion_id, CLAUDE_MODEL, content=text
+                                )
                             )
         finally:
             await context.__aexit__(None, None, None)
@@ -369,48 +272,30 @@ async def chat_completions(req: ChatRequest, request: Request):
             "inference_verifiable": False,
         }
         if req.stream:
-            yield _sse(
-                {
-                    "id": completion_id,
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": CLAUDE_MODEL,
-                    "choices": [{"index": 0, "finish_reason": "stop", "delta": {}}],
-                    "usage": usage_out,
-                    "x_vinfer": extension,
-                }
+            yield openai.sse(
+                openai.stream_chunk(
+                    completion_id,
+                    CLAUDE_MODEL,
+                    finish_reason="stop",
+                    usage=usage_out,
+                    extension=extension,
+                )
             )
-            yield _sse("[DONE]")
+            yield openai.sse("[DONE]")
         else:
-            yield json.dumps(
-                {
-                    "id": completion_id,
-                    "object": "chat.completion",
-                    "created": int(time.time()),
-                    "model": CLAUDE_MODEL,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "finish_reason": "stop",
-                            "message": {"role": "assistant", "content": text},
-                        }
-                    ],
-                    "usage": usage_out,
-                    "x_vinfer": extension,
-                }
+            yield openai.completion_body(
+                completion_id, CLAUDE_MODEL, text, "stop", usage_out, extension
             )
 
     if req.stream:
         return StreamingResponse(
             generate(),
             media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-store, no-transform, private",
-                "X-Accel-Buffering": "no",
-            },
+            headers=openai.STREAM_HEADERS,
         )
     chunks = [chunk async for chunk in generate()]
-    return JSONResponse(json.loads(chunks[-1]))
+    body = chunks[-1]
+    return openai.response_with_receipt(body, body["x_vinfer"]["receipt"])
 
 
 @app.get("/v1/receipts/{receipt_id}")

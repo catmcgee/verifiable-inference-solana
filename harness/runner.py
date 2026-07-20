@@ -56,11 +56,12 @@ def existing_run_ids(out_path: Path) -> set[str]:
 
 def one_request(client: httpx.Client, base_url: str, cell: dict, run_id: str) -> dict:
     prompt = "measure " * max(1, cell["prompt_tokens"])  # benchmark filler (token≈word)
+    messages = [{"role": "user", "content": prompt}]
     attest_fetch_ms = 0.0
     attest_verify_ms = 0.0
     if cell.get("input_mode", "tls") == "hpke":
         from cli.attest_verify import verify_attestation
-        from server.crypto.hpke_box import seal_to_enclave
+        from server.crypto.session_box import client_open_response, client_open_session
 
         t0 = time.perf_counter()
         att_response = client.get(f"{base_url}/v1/attestation", timeout=60)
@@ -72,9 +73,15 @@ def one_request(client: httpx.Client, base_url: str, cell: dict, run_id: str) ->
         attest_verify_ms = (time.perf_counter() - t0) * 1000
         if not verdict.trusted:
             raise RuntimeError(f"refusing HPKE benchmark: {verdict.reason}")
-        box = seal_to_enclave(attestation["hpke_public_key_b64"], prompt.encode())
+        plaintext = json.dumps(
+            {"schema": "vinfer-e2e-chat-v1", "messages": messages},
+            separators=(",", ":"),
+        ).encode()
+        box, session_key = client_open_session(
+            attestation["hpke_public_key_b64"], plaintext
+        )
         r = client.post(
-            f"{base_url}/v1/infer_sealed",
+            f"{base_url}/v1/chat_e2e",
             json={
                 "model": cell["model"],
                 "enc": box["enc"],
@@ -85,17 +92,34 @@ def one_request(client: httpx.Client, base_url: str, cell: dict, run_id: str) ->
         )
     else:
         r = client.post(
-            f"{base_url}/v1/infer",
+            f"{base_url}/v1/chat/completions",
             json={
                 "model": cell["model"],
-                "prompt": prompt,
+                "messages": messages,
                 "max_tokens": cell["output_tokens"],
             },
             timeout=600,
         )
     r.raise_for_status()
     body = r.json()
-    m = body["metrics"]
+    if cell.get("input_mode", "tls") == "hpke":
+        m = json.loads(
+            client_open_response(
+                session_key,
+                body["sealed_metrics"]["resp_nonce"],
+                body["sealed_metrics"]["sealed_response"],
+            )
+        )
+        usage = json.loads(
+            client_open_response(
+                session_key,
+                body["sealed_usage"]["resp_nonce"],
+                body["sealed_usage"]["sealed_response"],
+            )
+        )
+    else:
+        m = body["x_vinfer"]["metrics"]
+        usage = body["usage"]
     record = {
         "run_id": run_id,
         "leg": cell["leg"],
@@ -106,7 +130,7 @@ def one_request(client: httpx.Client, base_url: str, cell: dict, run_id: str) ->
         "threads": cell.get("threads", 0),
         "numa_policy": cell.get("numa_policy", "default"),
         "prompt_tokens": cell["prompt_tokens"],
-        "output_tokens": m["output_tokens"],
+        "output_tokens": usage["completion_tokens"],
         "batch": cell.get("batch", 1),
         "concurrency": cell.get("concurrency", 1),
         "ttft_ms": m["ttft_ms"],

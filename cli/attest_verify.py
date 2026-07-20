@@ -134,9 +134,16 @@ def _verify_execution_identity(doc: dict) -> tuple[bool, str]:
 
 
 def _report_data_expected(doc: dict) -> str:
+    binding_version = int(doc.get("binding_version", 1))
+    if binding_version == 1:
+        identity_hash = doc["model_weights_hash"]
+    elif binding_version == 2:
+        identity_hash = doc["registry_hash"]
+    else:
+        raise ValueError(f"unsupported binding_version {binding_version}")
     return hashlib.sha256(
         base64.b64decode(doc["enclave_pubkey_b64"])
-        + bytes.fromhex(doc["registry_hash"])
+        + bytes.fromhex(identity_hash)
         + bytes.fromhex(doc["server_build_hash"])
     ).hexdigest()
 
@@ -185,7 +192,7 @@ def verify_attestation(
             grade,
             False,
             None,
-            "report_data != sha256(enclave_pubkey‖registry_hash‖build) "
+            "report_data does not match the declared attestation binding "
             "— the doc is inconsistent; do NOT trust the key",
         )
 

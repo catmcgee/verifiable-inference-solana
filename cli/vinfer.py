@@ -9,7 +9,6 @@ SKIPPED with the reason rather than pretending.
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 import os
 import shutil
@@ -49,7 +48,6 @@ def cli():
     type=click.Path(dir_okay=False),
     help="Write the signed receipt JSON here",
 )
-@click.option("--sealed", is_flag=True, help="HPKE encrypt-to-enclave (input only)")
 @click.option(
     "--e2e",
     is_flag=True,
@@ -58,20 +56,18 @@ def cli():
 @click.option(
     "--insecure-allow-unattested",
     is_flag=True,
-    help="For --sealed/--e2e: accept a signed HPKE key without hardware attestation",
+    help="For --e2e: accept a signed HPKE key without hardware attestation",
 )
 def infer(
     model: str,
     prompt: str,
     max_tokens: int,
     receipt_out: str | None,
-    sealed: bool,
     e2e: bool,
     insecure_allow_unattested: bool,
 ):
-    """Run one inference. --sealed encrypts the prompt to the enclave (input
-    only). Both sealed modes verify the report and signed HPKE-key binding before
-    sending plaintext-derived ciphertext. --e2e also encrypts the response."""
+    """Run one chat completion. --e2e verifies attestation and seals both
+    directions; the default uses the OpenAI-compatible TLS endpoint."""
     if e2e:
         from cli.attest_verify import verify_attestation
         from server.crypto.session_box import client_open_session, client_open_response
@@ -88,9 +84,12 @@ def infer(
         if not v.trusted:
             click.echo("aborting e2e session — enclave key not trusted.", err=True)
             sys.exit(2)
-        wire, session_key = client_open_session(
-            doc["hpke_public_key_b64"], prompt.encode()
-        )
+        messages = [{"role": "user", "content": prompt}]
+        plaintext = json.dumps(
+            {"schema": "vinfer-e2e-chat-v1", "messages": messages},
+            separators=(",", ":"),
+        ).encode()
+        wire, session_key = client_open_session(doc["hpke_public_key_b64"], plaintext)
         r = httpx.post(
             f"{BASE_URL}/v1/chat_e2e",
             json={
@@ -125,47 +124,31 @@ def infer(
             Path(receipt_out).write_text(json.dumps(d["receipt"], indent=2))
             click.echo(f"receipt → {receipt_out}", err=True)
         return
-    if sealed:
-        from cli.attest_verify import verify_attestation
-        from server.crypto.hpke_box import seal_to_enclave
-
-        doc = _get("/v1/attestation")
-        verdict = verify_attestation(doc, allow_unattested=insecure_allow_unattested)
-        if not verdict.trusted:
-            click.echo(f"refusing sealed request: {verdict.reason}", err=True)
-            sys.exit(2)
-        box = seal_to_enclave(doc["hpke_public_key_b64"], prompt.encode())
-        r = httpx.post(
-            f"{BASE_URL}/v1/infer_sealed",
-            json={
-                "model": model,
-                "enc": box["enc"],
-                "ciphertext": box["ciphertext"],
-                "max_tokens": max_tokens,
-            },
-            headers=_auth_headers(),
-            timeout=600,
-        )
-    else:
-        r = httpx.post(
-            f"{BASE_URL}/v1/infer",
-            json={"model": model, "prompt": prompt, "max_tokens": max_tokens},
-            headers=_auth_headers(),
-            timeout=600,
-        )
+    r = httpx.post(
+        f"{BASE_URL}/v1/chat/completions",
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+        },
+        headers=_auth_headers(),
+        timeout=600,
+    )
     r.raise_for_status()
     body = r.json()
-    click.echo(body["text"])
-    m = body["metrics"]
+    click.echo(body["choices"][0]["message"]["content"])
+    proof = body["x_vinfer"]
+    m = proof["metrics"]
+    receipt = proof["receipt"]
     click.echo(
         f"\n[{model}] ttft {m['ttft_ms']}ms · {m['tokens_per_s']} tok/s · "
         f"itl p50/p99 {m['itl_ms_p50']}/{m['itl_ms_p99']}ms · e2e {m['e2e_ms']}ms · "
-        f"sev={m['sev_mode']} · backend={m['backend']} · receipt {body['receipt']['receipt_id']}",
+        f"sev={m['sev_mode']} · backend={m['backend']} · receipt {receipt['receipt_id']}",
         err=True,
     )
     if receipt_out:
         Path(receipt_out).parent.mkdir(parents=True, exist_ok=True)
-        Path(receipt_out).write_text(json.dumps(body["receipt"], indent=2))
+        Path(receipt_out).write_text(json.dumps(receipt, indent=2))
         click.echo(f"receipt → {receipt_out}", err=True)
 
 
@@ -220,32 +203,23 @@ def verify(receipt_file: str):
             step("fetch attestation", "FAIL", str(e))
 
     if att:
-        if att["grade"] == "snp":
-            from cli.attest_verify import _verify_snp_report, verify_attestation
+        from cli.attest_verify import verify_attestation
 
-            rep = att.get("snp_report_b64")
-            if rep:
-                ok, why = _verify_snp_report(
-                    base64.b64decode(rep), att["report_data"], att
-                )
-                step(
-                    "SNP report → AMD KDS (VCEK/ASK/ARK) chain",
-                    "PASS" if ok else "FAIL",
-                    "hardware-signed report verified to AMD roots" if ok else why,
-                )
-            else:
-                step(
-                    "SNP report → AMD KDS chain",
-                    "FAIL",
-                    "grade=snp but no report in doc",
-                )
-            verdict = verify_attestation(att, require_hpke=False)
+        verdict = verify_attestation(
+            att, allow_unattested=True, require_hpke=False
+        )
+        if att["grade"] == "snp":
             step(
-                "execution identity + attestation policy",
+                "SNP report + AMD chain + policy + execution identity + binding",
                 "PASS" if verdict.trusted else "FAIL",
                 verdict.reason,
             )
         else:
+            step(
+                "attestation document + execution identity + binding",
+                "PASS" if verdict.trusted else "FAIL",
+                verdict.reason,
+            )
             step(
                 "SNP report → AMD KDS chain",
                 "SKIPPED",
@@ -259,22 +233,6 @@ def verify(receipt_file: str):
         step("enclave key binding (attestation ↔ receipt)", binding)
         bv = att.get("binding_version", 1)
         if bv == 2:
-            mid = bytes.fromhex(att["registry_hash"])
-            label = "REPORT_DATA v2 = sha256(pubkey ‖ registry_hash ‖ build)"
-        else:
-            mid = bytes.fromhex(att["model_weights_hash"])
-            label = "REPORT_DATA v1 = sha256(pubkey ‖ weights ‖ build)"
-        expected = hashlib.sha256(
-            base64.b64decode(att["enclave_pubkey_b64"])
-            + mid
-            + bytes.fromhex(att["server_build_hash"])
-        ).hexdigest()
-        step(
-            label,
-            "PASS" if expected == att["report_data"] else "FAIL",
-            f"binding_version={bv}",
-        )
-        if bv == 2:
             reg = {e["id"]: e["weights_sha256"] for e in att.get("registry", [])}
             in_reg = receipt["model_hash"] in reg.values()
             step("receipt model_hash ∈ attested registry", "PASS" if in_reg else "FAIL")
@@ -282,7 +240,7 @@ def verify(receipt_file: str):
     # on-chain checks (devnet read-path; enclave keys are only on-chain once
     # register_attestation ran for them — absent PDA is reported, not failed)
     try:
-        from cli import devnet
+        from server.receipts import solana as devnet
 
         enclave_raw = base64.b64decode(receipt["enclave_pubkey_b64"])
         chain = devnet.check_onchain(enclave_raw)

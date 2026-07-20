@@ -104,11 +104,7 @@ interface MeasurementsDoc {
     program_id?: string;
     register_attestation_cu?: number;
     post_receipt_cu?: number;
-    batched_cu_per_receipt?: number;
     devnet_measured_at?: string;
-    batched_network?: string;
-    batched_measured_at?: string;
-    batch_size?: number;
     note?: string;
   };
   request_measurements?: {
@@ -508,22 +504,6 @@ function Onchain({ oc }: { oc: MeasurementsDoc["onchain_devnet"] }) {
           ) : (
             DASH
           )}
-        </dd>
-        <dt>batched, per receipt</dt>
-        <dd>
-          {oc?.batched_cu_per_receipt != null ? (
-            <>
-              <span className="v">{fmtInt(oc.batched_cu_per_receipt)}</span> CU
-            </>
-          ) : (
-            DASH
-          )}
-        </dd>
-        <dt>batch measurement</dt>
-        <dd>
-          {oc?.batched_network ?? DASH}
-          {oc?.batch_size != null ? ` · ${oc.batch_size} receipts` : ""}
-          {oc?.batched_measured_at ? ` · ${oc.batched_measured_at.slice(0, 10)}` : ""}
         </dd>
         <dt>program</dt>
         <dd className="hash">

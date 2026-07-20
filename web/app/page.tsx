@@ -20,7 +20,6 @@ import {
 } from "@/lib/api";
 import { LEGS } from "@/lib/labels";
 import { LegPicker, ModelPicker } from "@/components/Pickers";
-import { LegScope } from "@/components/LegScope";
 import { Masthead } from "@/components/Masthead";
 import {
   AccessBar,
@@ -65,7 +64,7 @@ export default function Page() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // selection
-  const [leg, setLeg] = useState("B");
+  const [leg, setLeg] = useState<LiveLeg>("B");
   const [modelId, setModelId] = useState<string | null>(null);
 
   // chat
@@ -83,8 +82,6 @@ export default function Page() {
   const pendingRef = useRef(false);
   const attestationRequestRef = useRef(0);
 
-  const liveLeg: LiveLeg | null = leg === "A" || leg === "B" || leg === "C" ? leg : null;
-
   useEffect(() => {
     // A route change can cross a privacy boundary. Never carry conversation
     // content or request accounting into a route with different guarantees.
@@ -97,11 +94,10 @@ export default function Page() {
   }, [leg]);
 
   const loadAttestation = useCallback(() => {
-    if (!liveLeg) return;
     const requestId = ++attestationRequestRef.current;
     setAttLoading(true);
     setAttError(null);
-    getAttestation(liveLeg)
+    getAttestation(leg)
       .then((document) => {
         if (requestId === attestationRequestRef.current) {
           setVerification(null);
@@ -118,15 +114,14 @@ export default function Page() {
           setAttLoading(false);
         }
       });
-  }, [liveLeg]);
+  }, [leg]);
 
   useEffect(() => {
-    if (!liveLeg) return;
     let cancelled = false;
     setModelsLoading(true);
     setModelsError(null);
     setAttestation(null);
-    getModels(liveLeg)
+    getModels(leg)
       .then((data) => {
         if (!cancelled) {
           setModels(data);
@@ -141,7 +136,7 @@ export default function Page() {
       });
     loadAttestation();
     setAuthLoading(true);
-    getAuthSession(liveLeg)
+    getAuthSession(leg)
       .then((session) => {
         if (!cancelled) {
           setAuth(session);
@@ -158,7 +153,7 @@ export default function Page() {
       cancelled = true;
       attestationRequestRef.current += 1;
     };
-  }, [liveLeg, loadAttestation]);
+  }, [leg, loadAttestation]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,7 +163,7 @@ export default function Page() {
     }
     setVerificationLoading(true);
     verifyInBrowser(attestation, lastReceipt, {
-      attestationRequired: liveLeg !== "A",
+      attestationRequired: leg !== "A",
     })
       .then((result) => {
         if (!cancelled) setVerification(result);
@@ -179,13 +174,12 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [attestation, lastReceipt, liveLeg]);
+  }, [attestation, lastReceipt, leg]);
 
   async function login(accessCode: string): Promise<boolean> {
-    if (!liveLeg) return false;
     setAuthError(null);
     try {
-      const session = await createAuthSession(accessCode, liveLeg);
+      const session = await createAuthSession(accessCode, leg);
       setAuth(session);
       return session.authenticated;
     } catch (e) {
@@ -195,10 +189,9 @@ export default function Page() {
   }
 
   async function logout(): Promise<void> {
-    if (!liveLeg) return;
     setAuthError(null);
     try {
-      await deleteAuthSession(liveLeg);
+      await deleteAuthSession(leg);
       setAuth({ required: true, authenticated: false, mode: null });
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : String(e));
@@ -212,20 +205,19 @@ export default function Page() {
 
   // keep the selection valid for the active leg
   useEffect(() => {
-    if (!liveLeg) return;
     if (!legModels.some((m) => m.id === modelId)) {
       const preferred = legModels.find((item) => item.id === "8b-q4");
       setModelId(preferred?.id ?? legModels[0]?.id ?? null);
     }
-  }, [liveLeg, legModels, modelId]);
+  }, [legModels, modelId]);
 
-  const model = liveLeg ? legModels.find((m) => m.id === modelId) ?? null : null;
+  const model = legModels.find((m) => m.id === modelId) ?? null;
   const activeLeg = LEGS.find((l) => l.id === leg);
 
   async function send() {
     const content = input.trim();
-    if (!content || pendingRef.current || !model || !liveLeg) return;
-    if (liveLeg === "B" && (!attestation || !verification?.attestationTrusted)) {
+    if (!content || pendingRef.current || !model) return;
+    if (leg === "B" && (!attestation || !verification?.attestationTrusted)) {
       return;
     }
     const history = [...messages, { role: "user" as const, content, ts: Date.now() }];
@@ -248,7 +240,7 @@ export default function Page() {
             : message,
         ));
       };
-      const resp = liveLeg === "B"
+      const resp = leg === "B"
         ? await postChatE2E(
             model.id,
             requestMessages,
@@ -257,7 +249,7 @@ export default function Page() {
             appendDelta,
           )
         : await postChatStream(
-            liveLeg,
+            leg,
             model.id,
             requestMessages,
             maxTokens,
@@ -278,7 +270,7 @@ export default function Page() {
         index === prev.length - 1
           ? {
               ...message,
-              content: liveLeg === "B"
+              content: leg === "B"
                 ? responseContent
                 : message.content,
               model: resp.model ?? model.id,
@@ -338,19 +330,13 @@ export default function Page() {
       <div className="pickerbar">
         <div className="picker-row">
           <LegPicker leg={leg} onChange={setLeg} disabled={pending} />
-          {liveLeg ? (
-            <ModelPicker
-              models={legModels}
-              selected={modelId}
-              onSelect={setModelId}
-              loading={modelsLoading}
-              error={modelsError}
-            />
-          ) : (
-            <div className={`picker-availability ${activeLeg?.availability ?? ""}`}>
-              {activeLeg?.availability === "recorded" ? "recorded only" : "not implemented"}
-            </div>
-          )}
+          <ModelPicker
+            models={legModels}
+            selected={modelId}
+            onSelect={setModelId}
+            loading={modelsLoading}
+            error={modelsError}
+          />
         </div>
         {!modelsError && (
           <div className="picker-note">
@@ -359,7 +345,7 @@ export default function Page() {
         )}
       </div>
 
-      {liveLeg ? <div className="body" id="leg-content">
+      <div className="body" id="leg-content">
         <main className="chat">
           <AccessBar
             required={auth?.required ?? true}
@@ -373,7 +359,7 @@ export default function Page() {
             messages={messages}
             pending={pending}
             pendingModel={model?.id ?? null}
-            sealed={liveLeg === "B"}
+            sealed={leg === "B"}
           />
           <Composer
             input={input}
@@ -385,7 +371,7 @@ export default function Page() {
               pending ||
               !auth?.authenticated ||
               !model ||
-              (liveLeg === "B" && !verification?.attestationTrusted) ||
+              (leg === "B" && !verification?.attestationTrusted) ||
               input.trim().length === 0
             }
             pending={pending}
@@ -404,7 +390,7 @@ export default function Page() {
           totals={totals}
           model={model}
         />
-      </div> : <LegScope leg={leg} />}
+      </div>
     </div>
   );
 }

@@ -15,58 +15,33 @@ test -r /dev/sev-guest -a -w /dev/sev-guest
 if ! mountpoint -q /mnt/models; then
   sudo mount -o ro /dev/vdc /mnt/models
 fi
-test -f /mnt/models/models/llama-3.1-8b-instruct-Q8_0.gguf
-
 OUT_SINGLE="runs/legB-snp-single-full.jsonl"
 OUT_CONC="runs/legB-snp-concurrency-isolated.jsonl"
 OUT_HPKE="runs/legB-snp-hpke-bound.jsonl"
-LLAMA_BIN="/mnt/models/llamacpp-bin/llama-server"
-Q8_MODEL="/mnt/models/models/llama-3.1-8b-instruct-Q8_0.gguf"
-BITNET_MODEL="/mnt/models/models/bitnet-b1.58-2B-4T-i2_s.gguf"
-Q4_MODEL="/mnt/models/models/llama-3.1-8b-instruct-Q4_K_M.gguf"
-Q70_MODEL="/mnt/models/models/llama-3.3-70b-instruct-Q4_K_M.gguf"
-BITNET_BIN="/mnt/models/bitnet-bin/llama-server"
 LOGS="$HOME/logs/legB-snp-q8"
 mkdir -p "$LOGS" runs
+RUNTIME_PID=
 
-start_base() {
-  local threads="$1"
-  pkill -f 'llama-server.*--port 860[124]' 2>/dev/null || true
-  sleep 2
-  env LD_LIBRARY_PATH=/mnt/models/bitnet-bin nohup "$BITNET_BIN" \
-    -m "$BITNET_MODEL" --port 8601 --host 127.0.0.1 -t "$threads" \
-    -c 16384 --parallel 8 --cont-batching --no-warmup \
-    >"$LOGS/bitnet-t${threads}.log" 2>&1 &
-  env LD_LIBRARY_PATH=/mnt/models/llamacpp-bin nohup "$LLAMA_BIN" \
-    -m "$Q4_MODEL" --port 8602 --host 127.0.0.1 -t "$threads" \
-    -c 16384 --parallel 8 --cont-batching --no-warmup \
-    >"$LOGS/8b-q4-t${threads}.log" 2>&1 &
-  env LD_LIBRARY_PATH=/mnt/models/llamacpp-bin nohup "$LLAMA_BIN" \
-    -m "$Q70_MODEL" --port 8604 --host 127.0.0.1 -t "$threads" \
-    -c 16384 --parallel 8 --cont-batching --no-warmup \
-    >"$LOGS/70b-q4-t${threads}.log" 2>&1 &
-  for port in 8601 8602 8604; do
-    for _ in $(seq 1 360); do
-      curl -sf --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null && break
-      sleep 2
-    done
-    curl -sf --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null || exit 3
-  done
+stop_runtimes() {
+  if [ -n "$RUNTIME_PID" ]; then
+    kill "$RUNTIME_PID" 2>/dev/null || true
+    wait "$RUNTIME_PID" 2>/dev/null || true
+    RUNTIME_PID=
+  fi
 }
+trap stop_runtimes EXIT
 
-start_q8() {
+start_runtimes() {
   local threads="$1"
-  pkill -f 'llama-server.*--port 8603' 2>/dev/null || true
-  sleep 2
-  env LD_LIBRARY_PATH=/mnt/models/llamacpp-bin nohup "$LLAMA_BIN" \
-    -m "$Q8_MODEL" --port 8603 --host 127.0.0.1 -t "$threads" \
-    -c 16384 --parallel 8 --cont-batching --no-warmup \
-    >"$LOGS/8b-q8-t${threads}.log" 2>&1 &
-  for _ in $(seq 1 180); do
-    curl -sf --max-time 2 http://127.0.0.1:8603/health >/dev/null && break
-    sleep 2
-  done
-  curl -sf http://127.0.0.1:8603/health >/dev/null
+  stop_runtimes
+  VINFER_BITNETCPP_SERVER=/mnt/models/bitnet-bin/llama-server \
+  VINFER_LLAMACPP_SERVER=/mnt/models/llamacpp-bin/llama-server \
+    nohup uv run python -m server.serve_models \
+      --models bitnet-2b,8b-q4,8b-q8,70b-q4 --threads "$threads" \
+      --context-cap 16384 --parallel 8 >"$LOGS/models-t${threads}.log" 2>&1 &
+  RUNTIME_PID=$!
+  uv run python -m server.serve_models \
+    --models bitnet-2b,8b-q4,8b-q8,70b-q4 --status --startup-timeout 720
 }
 
 restart_vinfer() {
@@ -94,8 +69,7 @@ PY
 }
 
 for threads in 16 32; do
-  start_base "$threads"
-  start_q8 "$threads"
+  start_runtimes "$threads"
   if [ "$threads" = 16 ]; then restart_vinfer; fi
   matrix="/tmp/legB-single-t${threads}.json"
   python3 - "$threads" "$matrix" <<'PY'

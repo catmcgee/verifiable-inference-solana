@@ -1,12 +1,14 @@
 import time
 import unittest
 import base64
-from unittest.mock import AsyncMock, patch
 
-from server.main import _generate
 from server import registry
-from server.runtimes.bitnetcpp import BITNET_CHAT_TEMPLATE, BitnetCppRuntime
-from server.runtimes.llamacpp import _finish_chat, _validated_usage
+from server.runtimes.llamacpp import (
+    BITNET_CHAT_TEMPLATE,
+    LlamaCppRuntime,
+    _finish_chat,
+    _validated_usage,
+)
 from server.receipts.solana import attestation_pda
 
 
@@ -65,7 +67,7 @@ class LlamaUsageTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["tokens_per_s"], 15.624)
 
     def test_bitnet_uses_publisher_chat_template(self):
-        runtime = BitnetCppRuntime(registry.load()["bitnet-2b"])
+        runtime = LlamaCppRuntime(registry.load()["bitnet-2b"])
         payload = runtime._chat_payload(
             [{"role": "user", "content": "synthetic prompt"}], 12
         )
@@ -87,33 +89,6 @@ class SolanaAddressTests(unittest.TestCase):
     def test_attestation_pda_rejects_wrong_key_length(self):
         with self.assertRaises(ValueError):
             attestation_pda(base64.b64encode(b"short").decode())
-
-
-class RawGenerationUsageTests(unittest.IsolatedAsyncioTestCase):
-    async def test_raw_generation_counts_real_prompt_tokens(self):
-        runtime = type(
-            "Runtime",
-            (),
-            {
-                "generate": AsyncMock(
-                    return_value={
-                        "text": "ok",
-                        "metrics": {"output_tokens": 2},
-                    }
-                ),
-                "tokenize": AsyncMock(return_value=[1, 2, 3]),
-            },
-        )()
-        with (
-            patch("server.main._servable"),
-            patch("server.main.runtimes.for_model", return_value=runtime),
-        ):
-            result = await _generate("bitnet-2b", "synthetic prompt", 8)
-
-        self.assertEqual(
-            result["usage"],
-            {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
-        )
 
 
 if __name__ == "__main__":

@@ -8,10 +8,17 @@ export default defineConfig({
   reporter: "line",
   use: {
     baseURL: process.env.VINFER_CONSOLE_URL ??
-      "https://console.213.239.141.40.sslip.io",
+      "http://127.0.0.1:3000",
     headless: true,
     trace: "retain-on-failure",
   },
+  webServer: process.env.VINFER_CONSOLE_URL
+    ? undefined
+    : {
+        command: "npm run dev",
+        url: "http://127.0.0.1:3000",
+        reuseExistingServer: true,
+      },
   projects: [
     {
       name: "chromium",

@@ -63,7 +63,7 @@ pub fn handle_register_attestation(
     attestation.registry_hash = args.registry_hash;
     attestation.slot = Clock::get()?.slot;
     attestation.receipt_count = 0;
-    attestation.batch_count = 0;
+    attestation.reserved = 0;
     attestation.bump = ctx.bumps.attestation;
 
     Ok(())

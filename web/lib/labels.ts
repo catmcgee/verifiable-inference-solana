@@ -1,3 +1,5 @@
+import type { LiveLeg } from "@/lib/api";
+
 // Deadpan copy tables. State facts; never grade up.
 
 interface SevLabel {
@@ -46,10 +48,9 @@ export function gradeLabel(grade: string | null | undefined): string | null {
 }
 
 interface Leg {
-  id: string;
+  id: LiveLeg;
   label: string;
   desc: string;
-  availability: "live" | "recorded" | "missing";
 }
 
 export const LEGS: Leg[] = [
@@ -57,25 +58,16 @@ export const LEGS: Leg[] = [
     id: "A",
     label: "Open-source models without TEE",
     desc: "Runs the open models directly on the AMD host. This is the speed and cost baseline; there is no memory encryption or attestation.",
-    availability: "live",
   },
   {
     id: "B",
     label: "Open-source models in TEE",
     desc: "Runs open models inside AMD SEV-SNP. The browser verifies the attested key before encrypting the prompt and decrypts the response locally.",
-    availability: "live",
   },
   {
     id: "C",
     label: "Claude through TEE proxy",
     desc: "Verifies the proxy, not Claude inference. Anthropic receives the plaintext prompt.",
-    availability: "live",
-  },
-  {
-    id: "D",
-    label: "ZK proof (pending GPUs)",
-    desc: "Planned when GPUs are added to Sunburst. Tachyon is the intended proving path for models up to 2.4B parameters; no proof is live yet.",
-    availability: "missing",
   },
 ];
 

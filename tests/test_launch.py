@@ -8,7 +8,7 @@ import yaml
 
 from server import registry
 from server import main as server_main
-from server.launch import launch_command, runtime_environment
+from server.serve_models import launch_command, runtime_environment
 from server.runtimes.base import Runtime
 
 
@@ -82,7 +82,7 @@ class RegistryLaunchTests(unittest.TestCase):
         )
 
     def test_adapter_contract_has_required_operations(self):
-        for method in ("load", "tokenize", "stream_generate"):
+        for method in ("load", "chat", "chat_stream"):
             self.assertTrue(hasattr(Runtime, method), method)
 
     def test_attestation_binding_uses_complete_hash_bearing_registry(self):

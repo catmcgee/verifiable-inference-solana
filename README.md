@@ -40,9 +40,6 @@ and hashing candidate values.
   Transport Layer Security (TLS) protects transport, but the host sees text.
 - **Claude proxy:** measures attested-proxy overhead. Anthropic sees plaintext,
   and Claude inference is not verified.
-- **ZK proof:** intentionally pending suitable Sunburst hardware; no proof or
-  zero-knowledge inference result is currently claimed.
-
 All five registry models are live inside the 832 GiB SNP guest: BitNet, 8B Q4,
 8B Q8, 70B Q4, and GLM-5.2 Q4. The browser exposes 1,244 unique request records
 plus session measurements.

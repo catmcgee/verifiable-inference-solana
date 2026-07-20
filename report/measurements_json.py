@@ -15,7 +15,7 @@ from pathlib import Path
 
 import jsonschema
 
-from report.generate import discard_request_warmups
+from report.analysis import discard_request_warmups
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
@@ -284,22 +284,12 @@ def main() -> None:
     # --- on-chain economics, preserving the measured network for each value ---
     cu = json.loads((ROOT / "solana" / "cu-measurements.json").read_text())
     devnet_cu = cu["devnet"]
-    localnet_cu = cu["localnet"]
     out["onchain_devnet"] = {
         "program_id": cu["program_id"],
         "register_attestation_cu": devnet_cu["register_attestation_cu"],
         "post_receipt_cu": devnet_cu["post_receipt_cu"],
         "devnet_measured_at": devnet_cu["measured_at"],
-        "batched_cu_per_receipt": round(
-            localnet_cu["post_receipt_batch_cu"] / localnet_cu["batch_size"], 1
-        ),
-        "batched_network": "localnet",
-        "batched_measured_at": localnet_cu["measured_at"],
-        "batch_size": localnet_cu["batch_size"],
-        "note": (
-            "Register and single-receipt costs were measured on devnet. "
-            "Batch cost was measured on localnet and is not a devnet result."
-        ),
+        "note": "Register and receipt costs were measured on devnet.",
     }
     out["provenance"] = {
         "stream_rows": "runs/legAB-stream.jsonl",

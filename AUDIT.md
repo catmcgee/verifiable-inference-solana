@@ -4,6 +4,12 @@ Audit date: 2026-07-18. The user's audit brief is the authoritative specificatio
 Repository plans, READMEs, prior audit claims, and prior-agent conversation notes
 were treated only as evidence.
 
+> Historical snapshot: architecture cleanup on 2026-07-20 removed the raw
+> inference aliases, ZK/batch/payment-channel stubs, alternate launchers,
+> alternate registration scripts, and static HTML report generator. Current
+> interfaces are documented in README; measurements and trust findings below
+> remain the audit evidence captured on 2026-07-18.
+
 ## Executive Summary
 
 This is a real SNP/devnet prototype, not a specification-complete verified
@@ -36,8 +42,8 @@ Bluntest findings first:
    four local models, prompts 128/1024, output 128, guest threads 16/32, and a
    narrow HPKE slice. Prompt 8192, output 1024, guest threads 64/128, full HPKE,
    GLM-in-SNP, memory latency, and all leg-D rungs are absent.
-6. **Leg D is intentionally deferred.** The proof instruction remains an
-   explicit non-verifying stub; no ZK inference result is claimed.
+6. **Leg D was intentionally deferred.** No ZK inference result was claimed;
+   the later cleanup removed its non-verifying stub entirely.
 7. **Both current live chains pass.** `vinfer-0.8.2` open-model and
    `vinfer-legc-proxy-0.2.2` Claude-proxy receipts passed the SNP report,
    VCEK/ASK/ARK chain, v2 binding, registry PDA, receipt signature, receipt PDA
@@ -68,7 +74,7 @@ Further remediation on 2026-07-18:
 - Added typed request caps, a bounded in-memory receipt cache, and a 1 MB Caddy
   body limit. Public oversized requests return 413 before inference.
 - Replaced hard-coded Solana browser figures with a structured, network-labeled
-  measurement artifact; localnet batch cost is no longer labeled as devnet.
+  measurement artifact.
 - Added a deterministic `make check` CI gate and public Playwright coverage for
   ciphertext-only TEE traffic and route-change history clearing.
 - The published BitNet weight hash is exact, but live answer quality is
@@ -152,7 +158,7 @@ Further remediation on 2026-07-18:
 | Leg A baseline | PARTIAL | Real llama/BitNet measurements exist, but not the required full grid. |
 | Leg B SNP inference | PARTIAL | Real VMPL0 report, KDS verification, five-model live inference, and a reduced four-model twin matrix exist. GLM SNP measurements and the full matrix do not; mutable userspace is not measured. |
 | Leg C direct/proxied Claude | PARTIAL | `runs/legC-full.jsonl` has 64 direct + 64 proxied rows, one Claude model. Grid is only prompts 128/1024, caps 128/512, n=8. |
-| Leg D ladder | MISSING | No D records. `solana/.../verify_inference_proof.rs:7-12,46-54` explicitly says no verification. |
+| Leg D ladder | MISSING | No D records or supported proof implementation. The later cleanup removed the non-verifying stub. |
 
 ### Models, API, Attestation, Pricing, and pay.sh
 
@@ -161,11 +167,11 @@ Further remediation on 2026-07-18:
 | Five required registry models | PASS | `models.yaml:7-72` contains BitNet, 8B Q4/Q8, 70B Q4, and GLM-5.2 with paths, hashes, contexts, legs, and prices. |
 | GLM-5.2 first-class measurement/report | PARTIAL after fix | `runs/glm-bench.jsonl` has 10 baseline rows at prompt 16; the report shows the baseline, registry price, and explicit missing SNP/MoE comparison. The model is now live in the 832 GiB SNP guest, but the required matched SNP experiment is still missing. |
 | External upstream scope | PASS | Claude is the only external API upstream; GLM and the other registry models use local open weights. |
-| `models.yaml` single source | PASS after fix | `infra/run-servers.sh` delegates to `server/launch.py`, which consumes registry weights, runtime, port, context, and template. No serving model table remains. |
-| Runtime interface names | PASS after fix | `server/runtimes/base.py` defines `load/tokenize/stream_generate`; read-only health/tokenize/path probes passed against all five real host runtimes. |
+| `models.yaml` single source | PASS after fix | `infra/run-servers.sh` delegates to `server/serve_models.py`, which consumes registry weights, runtime, port, context, and template. No serving model table remains. |
+| Runtime interface names | PASS after fix | `server/runtimes/base.py` exposes only `load`, `chat`, and `chat_stream`. |
 | OpenAI-compatible endpoint | PASS after fix | Live `POST /v1/chat/completions`; eight JSON + one SSE requests passed. llama.cpp usage is required/validated and an empty completion returned 200. Free models/attestation/receipt GETs remain. |
 | Authenticated browser test path | PASS after fix | Live anonymous POST is 401; session login, real completion, and logout/401 cycle passed. Cookie is Secure, HttpOnly, SameSite=Strict; static bundle contains no access code. |
-| `/v1/infer` thin alias | PARTIAL | `server/main.py:619-640` is a separate raw-prompt generation path, not a call-through to chat completions. Endpoint-shape changes are Category B. |
+| `/v1/infer` thin alias | REMOVED | The later cleanup retained only OpenAI-compatible plaintext chat and sealed chat. |
 | Pricing derivation | PARTIAL | `report/pricing.py` reads throughput and documented constants, then writes prices. Receipt amortization assumes 128 output tokens/request; this is not data-driven per request distribution. |
 | Quote formula | WRONG | Active pay runtime authorizes a configured `$0.50` ceiling and settles observed tokens. It does not calculate prompt tokens plus requested maximum output before payment. |
 | Upfront, no-refund settlement | WRONG | Official `x402-upto` refunds the unused authorized ceiling. This is documented, not presented as satisfying the older requirement. |
@@ -187,7 +193,7 @@ Further remediation on 2026-07-18:
 | Existing JSONL schema validity | PASS | Structured validation: 2,772 request + 8 session rows, zero errors. |
 | Measurement semantic completeness | PARTIAL after fix | Registry-driven migration filled legacy empty `quant` values. The 1,244 curated browser rows remain historical measurements with zero receipt-post/CU fields; live posting now works but those old experiments have not been rerun. |
 | Resumability | PARTIAL | `harness/runner.py:35-49,125-156` skips deterministic run IDs by scanning output; no required completed-cell manifest exists. |
-| Warmup discard | PASS | `report/generate.py:75-107` drops first two per reconstructed cell while retaining raw rows. |
+| Warmup discard | PASS | `report/analysis.py` drops first two per reconstructed cell while retaining raw rows. |
 | Pinned threads / fixed NUMA | PARTIAL | NUMA labels and thread counts are recorded, but runtime launch uses `-t`; no complete CPU-affinity evidence exists for every run. |
 | Legs A/B full Cartesian grid | WRONG | Missing GLM-SNP, prompt 8192, output 1024, guest 64/128 threads, most HPKE cells; current reduced cells mostly n=10. |
 | Leg C required grid | WRONG | Prompts 8192 and output cap 1024 absent; n=8, not n>=10. |
@@ -201,9 +207,9 @@ Further remediation on 2026-07-18:
 | Honest grade | PASS | Current live/report/PDA are SNP; legacy ES remains launch-only. |
 | Receipt hashes only | PASS | `state.rs:54-73`; prompt/response/model hashes, key, timestamp/index/slot only. |
 | Native ed25519 verification | PASS | `ed25519.rs:35-110` requires the immediately preceding native program instruction, one signature, self-contained offsets, exact key and message. |
-| Merkle batch | PASS | Batch account/instruction and 14/14 localnet tests; 32 receipts measured at 11,895 program CU. |
-| Groth16 alt_bn128 verification | MISSING | Stub records hashes and `verified=false`; no Groth16 dependency or syscall. |
-| Mainnet economics projection | MISSING | No base/p50/p90 priority-fee, rent, single/batch, $/receipt, and $/1M complete projection. |
+| Merkle batch | REMOVED | The later cleanup removed the unused batch instruction and account. |
+| Groth16 alt_bn128 verification | MISSING | No supported proof instruction or verifier. |
+| Mainnet economics projection | MISSING | No base/p50/p90 priority-fee, rent, $/receipt, and $/1M complete projection. |
 | `vinfer verify` full chain | PASS | Recorded SNP receipt passed KDS chain, policy, key binding, PDA, registry, signature, and exact receipt contents/index 0. |
 | Live boot on-chain receipt continuity | PASS | Build 0.8.2 is registered at `3Ujr6...HtRCUk`; an 8B request posted receipt index 1 and full `vinfer verify` returned `RESULT: OK`. Proxy build 0.2.2 is registered at `EQpcM...LLZwPb`; its confirmed receipt index 0 also passed the full chain. |
 
@@ -214,7 +220,7 @@ Further remediation on 2026-07-18:
 | HPKE private-key lifecycle | PASS | `server/main.py:92-100`; `hpke_box.py` uses generated in-memory X25519 key; no persistence/log call. |
 | Attestation before encryption | PASS | CLI/harness and `web/app/page.tsx` fail closed. Browser Run stays disabled until AMD chain, policy, signed HPKE key, and attestation PDA checks all pass. |
 | Signed HPKE binding | PASS | `cli/attest_verify.py:94-114`; domain-separated signature by the SNP-bound Ed25519 key. |
-| Input-only vs bidirectional truth | PASS | `/v1/infer_sealed` is input-only. `/v1/chat_e2e` seals chat history, streamed deltas, complete response, metrics, and usage. Baseline/Claude routes are explicitly TLS-only. |
+| Sealed route truth | PASS | `/v1/chat_e2e` seals chat history, streamed deltas, complete response, metrics, and usage. Baseline/Claude routes are explicitly TLS-only; the later cleanup removed the input-only alias. |
 | On-chain plaintext/user identifiers | PASS | Anchor state and receipt construction use hashes only. No prompt, response, or user ID field. |
 | Application/model logging | PASS | Source and guest log scan found no prompt/message/content markers or key markers. Harness JSONL has schema-only metrics. |
 | Edge access logging | PARTIAL | Caddy logs had remote IP/User-Agent but no bodies/authorization. `8b5d173` disabled new access logs and was deployed; old files remain because box deletion was forbidden. |
@@ -235,9 +241,9 @@ Further remediation on 2026-07-18:
 | Web streaming chat and metrics | PASS | Production/static builds pass; model/leg picker, streamed text, TTFT/tok/s/cost/grade/receipt panels exist. The deployed explanation distinguishes Caddy/TLS routing, loopback isolation, HPKE content privacy, operator SSH, and hash-only Solana data. |
 | Web measurement visibility | PASS after fix | Both route forms return 200; deployed JSON and UI expose 1,244 unique request rows, warmup status, every frozen field via row details, and all four sessions. |
 | Web verified pass/fail + tx link | PASS after fix | Browser independently verifies AMD chain/report, local policy, HPKE binding, registry PDA, receipt signature/content, and exact receipt PDA. Live Playwright observed `verified`, a trusted prompt key, `end-to-end sealed`, and a confirmed receipt link. |
-| Web zkML scope honesty | PASS after fix | Public chunk says verifier is a stub, no measurements, integrity not input privacy. |
-| Report required analyses | PARTIAL after fix | GLM baseline and the missing matched SNP comparison are explicit. Full mainnet economics, measured zkML ladder, Groth16-vs-hash, and sourced GPU projections remain absent. |
-| Report provenance links | PASS after fix | Every section footer contains the complete contributing run/session IDs linked to exact browser filters (`report/generate.py`). |
+| Web zkML scope honesty | REMOVED | The later cleanup removed the unimplemented option from the public UI. |
+| Report required analyses | PARTIAL after fix | GLM baseline and the missing matched SNP comparison are explicit. Full mainnet economics remains absent. |
+| Report provenance | PASS after fix | `report/measurements_json.py` emits the raw request/session rows and source metadata used by the frontend. |
 | Report attestation costs | PARTIAL after fix | Positive phase samples report median/p99/n; zero sentinels are `not recorded`, not zero cost. Per-response post/confirm/CU/fees remain unmeasured. |
 | LEDGER deliverable | MISSING by owner direction | The owner later requested redundant Markdown removal. Current state/evidence now live in `README.md`/`AUDIT.md`, and unresolved work lives in `FIXES.md`; this intentionally removes the original checklist's separate `LEDGER.md` deliverable. |
 | Mock-server harness pipeline | MISSING | Previous agent deleted the mock; Pass 2 could not run the required pipeline. Unit isolation tests and live server checks passed, but that is not the requested mock pipeline. |

@@ -10,6 +10,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from server.receipts.poster import ReceiptPostError, ReceiptPoster
+from server.receipts.solana import RPC_URL
 
 
 class RelayReceipt(BaseModel):
@@ -41,7 +42,7 @@ def _token() -> str:
 def _poster() -> ReceiptPoster:
     return ReceiptPoster(
         os.environ.get("VINFER_SOLANA_PAYER", "solana/.devnet-deployer.json"),
-        os.environ.get("VINFER_SOLANA_RPC", "https://api.devnet.solana.com"),
+        RPC_URL,
     )
 
 

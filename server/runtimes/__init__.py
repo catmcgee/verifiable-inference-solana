@@ -2,12 +2,11 @@
 
 from server.registry import ModelEntry
 from server.runtimes.base import Runtime
-from server.runtimes.bitnetcpp import BitnetCppRuntime
 from server.runtimes.llamacpp import LlamaCppRuntime
 
 _RUNTIMES: dict[str, type[Runtime]] = {
     "llamacpp": LlamaCppRuntime,
-    "bitnetcpp": BitnetCppRuntime,
+    "bitnetcpp": LlamaCppRuntime,
 }
 
 

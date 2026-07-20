@@ -7,7 +7,6 @@ import {
   Cpu,
   Database,
   Fingerprint,
-  Gauge,
   Globe2,
   LockKeyhole,
   MonitorDot,
@@ -350,19 +349,6 @@ export default function HowItWorksPage() {
             </div>
           </section>
 
-          <section className="zk-band">
-            <div className="zk-mark"><Gauge size={24} /></div>
-            <div>
-              <div className="eyebrow">Zero-knowledge proof, pending hardware</div>
-              <h2>Planned after Sunburst adds graphics processing units (GPUs)</h2>
-              <p>
-                Tachyon is the intended zero-knowledge (ZK) proving path for models
-                up to 2.4B parameters. It is not live today: no GPU prover,
-                proof timing, or ZK-verified
-                inference result is claimed yet.
-              </p>
-            </div>
-          </section>
         </div>
       </main>
     </div>

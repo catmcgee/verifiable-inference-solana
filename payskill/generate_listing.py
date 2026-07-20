@@ -40,6 +40,11 @@ def emit_openapi(output: Path, service_url: str) -> None:
     spec["paths"] = {
         path: value for path, value in spec["paths"].items() if path in keep
     }
+    keep_schemas = {"ChatRequest", "HTTPValidationError", "ValidationError"}
+    schemas = spec.get("components", {}).get("schemas", {})
+    spec["components"]["schemas"] = {
+        name: value for name, value in schemas.items() if name in keep_schemas
+    }
     chat_responses = spec["paths"]["/v1/chat/completions"]["post"]["responses"]
     chat_responses["402"] = {
         "description": "x402 payment required; see the PAYMENT-REQUIRED header."
@@ -131,7 +136,6 @@ The SNP report binds the guest signing key, complete hash-bearing registry
 digest, and build identifier. Runtime availability is reported separately.
 The current mutable guest root means this does not independently
 prove which Python code or model weights executed. Leg C is not exposed here.
-Leg D verification remains a stub and is not offered as a paid endpoint.
 
 Use `vinfer verify <receipt.json>` for the SNP/KDS, key-binding, registry, and
 signature checks. The live origin currently returns confirmed Solana devnet
@@ -205,9 +209,7 @@ def build_provider(
     )
     emit_openapi(provider_dir / "openapi.json", service_url)
 
-    # Keep repository-level artifacts byte-identical to the generated catalog
-    # candidate used by the validator.
-    (PAY_ROOT / "PAY.md").write_bytes(paymd.read_bytes())
+    # Keep the runtime OpenAPI document byte-identical to the catalog candidate.
     (PAY_ROOT / "openapi.json").write_bytes(
         (provider_dir / "openapi.json").read_bytes()
     )
@@ -235,7 +237,15 @@ def main() -> None:
     parser.add_argument("--max-request-usd", type=float, default=0.50)
     parser.add_argument("--live-check", action="store_true")
     parser.add_argument("--probe", action="store_true")
+    parser.add_argument(
+        "--openapi-only",
+        action="store_true",
+        help="refresh the deterministic runtime OpenAPI artifact and exit",
+    )
     args = parser.parse_args()
+    if args.openapi_only:
+        emit_openapi(PAY_ROOT / "openapi.json", args.service_url)
+        return
     if args.probe and not args.live_check:
         parser.error("--probe requires --live-check")
     build_provider(

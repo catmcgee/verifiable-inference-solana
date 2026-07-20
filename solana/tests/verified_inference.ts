@@ -11,8 +11,6 @@ import {
 import nacl from "tweetnacl";
 import { assert, expect } from "chai";
 import { createHash } from "crypto";
-import * as fs from "fs";
-import * as path from "path";
 import { VerifiedInference } from "../target/types/verified_inference";
 
 // ---------------------------------------------------------------------------
@@ -36,36 +34,6 @@ function receiptMessage(
     modelHash,
     timestamp.toArrayLike(Buffer, "le", 8),
   ]);
-}
-
-/** merkle_root || num_receipts_le(u32) || timestamp_le(i64) — canonical
- *  44-byte batch message. */
-function batchMessage(
-  root: Buffer,
-  numReceipts: number,
-  timestamp: BN
-): Buffer {
-  const n = Buffer.alloc(4);
-  n.writeUInt32LE(numReceipts);
-  return Buffer.concat([root, n, timestamp.toArrayLike(Buffer, "le", 8)]);
-}
-
-/** sha256 merkle root, lone-leaf promoted (matches state.rs docs). */
-function merkleRoot(leaves: Buffer[]): Buffer {
-  if (leaves.length === 0) throw new Error("empty merkle tree");
-  let level = leaves.map((l) => sha256(l));
-  while (level.length > 1) {
-    const next: Buffer[] = [];
-    for (let i = 0; i < level.length; i += 2) {
-      next.push(
-        i + 1 < level.length
-          ? sha256(Buffer.concat([level[i], level[i + 1]]))
-          : level[i] // lone leaf promoted
-      );
-    }
-    level = next;
-  }
-  return level[0];
 }
 
 const u64le = (n: BN | number): Buffer =>
@@ -117,12 +85,6 @@ describe("verified_inference", () => {
   const receiptPda = (index: BN | number) =>
     PublicKey.findProgramAddressSync(
       [Buffer.from("receipt"), enclavePk, u64le(index)],
-      program.programId
-    )[0];
-
-  const batchPda = (index: BN | number) =>
-    PublicKey.findProgramAddressSync(
-      [Buffer.from("receipt_batch"), enclavePk, u64le(index)],
       program.programId
     )[0];
 
@@ -183,21 +145,6 @@ describe("verified_inference", () => {
       message,
       signature: nacl.sign.detached(message, keypair.secretKey),
     });
-
-  const registerIx = (kp: nacl.SignKeyPair) =>
-    program.methods
-      .registerAttestation({
-        enclaveEd25519Pubkey: Array.from(kp.publicKey),
-        snpMeasurement: Array.from(snpMeasurement),
-        reportDataHash: Array.from(reportDataHash),
-        modelWeightsHash: Array.from(modelHash),
-        runtimeVersion: "bitnet.cpp@p0-scaffold",
-        attestationGrade: { noTee: {} },
-        bindingVersion: 2,
-        registryHash: Array.from(registryHash),
-      })
-      .accounts({ payer: provider.wallet.publicKey })
-      .instruction();
 
   it("exposes a hash-only receipt instruction and account schema", () => {
     const idl = program.idl as any;
@@ -300,7 +247,7 @@ describe("verified_inference", () => {
     expect(Buffer.from(att.registryHash)).to.deep.equal(registryHash);
     expect(att.slot.toNumber()).to.be.greaterThan(0);
     expect(att.receiptCount.toNumber()).to.equal(0);
-    expect(att.batchCount.toNumber()).to.equal(0);
+    expect(att.reserved.toNumber()).to.equal(0);
   });
 
   it("registers a v1 (legacy model-hash binding) attestation", async () => {
@@ -501,102 +448,6 @@ describe("verified_inference", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // post_receipt_batch
-  // ---------------------------------------------------------------------------
-
-  const BATCH_N = 32;
-
-  it(`posts a merkle-batched receipt root (${BATCH_N} receipts, one signature)`, async () => {
-    const ts = new BN(Math.floor(Date.now() / 1000));
-    const leaves: Buffer[] = [];
-    for (let i = 0; i < BATCH_N; i++) {
-      leaves.push(
-        receiptMessage(
-          sha256(Buffer.from(`prompt-${i}`)),
-          sha256(Buffer.from(`response-${i}`)),
-          modelHash,
-          ts
-        )
-      );
-    }
-    const root = merkleRoot(leaves);
-    const msg = batchMessage(root, BATCH_N, ts);
-
-    const ix = await program.methods
-      .postReceiptBatch(
-        Array.from(enclave.publicKey),
-        Array.from(root),
-        BATCH_N,
-        ts
-      )
-      .accountsPartial({
-        payer: provider.wallet.publicKey,
-        attestation: attestationPda,
-        batch: batchPda(0),
-        instructionsSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
-      })
-      .instruction();
-    await send(
-      [ed25519Ix(enclave, msg), ix],
-      `post_receipt_batch (${BATCH_N} receipts)`
-    );
-
-    const batch = await program.account.receiptBatchAccount.fetch(batchPda(0));
-    expect(Buffer.from(batch.merkleRoot)).to.deep.equal(root);
-    expect(batch.numReceipts).to.equal(BATCH_N);
-    expect(batch.index.toNumber()).to.equal(0);
-    const att = await program.account.attestationAccount.fetch(attestationPda);
-    expect(att.batchCount.toNumber()).to.equal(1);
-  });
-
-  // ---------------------------------------------------------------------------
-  // verify_inference_proof (stub)
-  // ---------------------------------------------------------------------------
-
-  it("records a zkML proof commitment (stub — no verification yet)", async () => {
-    const proofHash = sha256(Buffer.from("groth16-proof-bytes-placeholder"));
-    const publicInputsHash = sha256(Buffer.from("public-inputs-placeholder"));
-    const [proofPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("proof"), proofHash],
-      program.programId
-    );
-
-    const sig = await program.methods
-      .verifyInferenceProof(
-        Array.from(proofHash),
-        Array.from(publicInputsHash),
-        1 // ladder rung 1: one ternary matmul
-      )
-      .accounts({ payer: provider.wallet.publicKey })
-      .rpc({ commitment: "confirmed" });
-    await confirmAndLogCU("verify_inference_proof (stub)", sig);
-
-    const rec = await program.account.proofRecordAccount.fetch(proofPda);
-    expect(Buffer.from(rec.proofHash)).to.deep.equal(proofHash);
-    expect(Buffer.from(rec.publicInputsHash)).to.deep.equal(publicInputsHash);
-    expect(rec.rungId).to.equal(1);
-    // TODO(groth16): stays false until real alt_bn128 verification lands.
-    expect(rec.verified).to.be.false;
-  });
-
-  it("rejects an out-of-range rung id", async () => {
-    const proofHash = sha256(Buffer.from("another-proof"));
-    try {
-      await program.methods
-        .verifyInferenceProof(
-          Array.from(proofHash),
-          Array.from(sha256(Buffer.from("pi"))),
-          9
-        )
-        .accounts({ payer: provider.wallet.publicKey })
-        .rpc({ commitment: "confirmed" });
-      assert.fail("should have failed: bad rung id");
-    } catch (err: any) {
-      assert.match(err.toString(), /InvalidRungId/);
-    }
-  });
-
-  // ---------------------------------------------------------------------------
   // CU notes
   // ---------------------------------------------------------------------------
 
@@ -609,67 +460,6 @@ describe("verified_inference", () => {
           7
         )} CU  (tx msg ${txBytes} B)`
       );
-    }
-    const perReceiptBatch = cuLog.find((e) =>
-      e.label.startsWith("post_receipt_batch")
-    );
-    const single = cuLog.find((e) => e.label.startsWith("post_receipt ("));
-    if (perReceiptBatch && single) {
-      console.log(
-        `    -> batched: ${(perReceiptBatch.cu / BATCH_N).toFixed(
-          1
-        )} CU per receipt ` +
-          `vs ${single.cu} CU single (${(
-            single.cu /
-            (perReceiptBatch.cu / BATCH_N)
-          ).toFixed(1)}x cheaper per receipt, program CU only)`
-      );
-    }
-
-    if (process.env.UPDATE_CU_NOTES !== "1") return;
-
-    const metricsPath = path.join(__dirname, "..", "cu-measurements.json");
-    const metrics = JSON.parse(fs.readFileSync(metricsPath, "utf8"));
-    metrics.localnet = {
-      measured_at: new Date().toISOString(),
-      batch_size: BATCH_N,
-      post_receipt_batch_cu: perReceiptBatch?.cu ?? null,
-    };
-    fs.writeFileSync(metricsPath, JSON.stringify(metrics, null, 2) + "\n");
-
-    // Refresh the measured table in solana/CU-NOTES.md between markers.
-    const notesPath = path.join(__dirname, "..", "CU-NOTES.md");
-    if (fs.existsSync(notesPath)) {
-      const begin = "<!-- CU:BEGIN (auto-generated by anchor test) -->";
-      const end = "<!-- CU:END -->";
-      const table = [
-        begin,
-        "",
-        `Measured ${new Date().toISOString()} on localnet (anchor test).`,
-        "",
-        "| instruction | CU consumed | tx message bytes |",
-        "|---|---|---|",
-        ...cuLog.map((e) => `| ${e.label} | ${e.cu} | ${e.txBytes} |`),
-        ...(perReceiptBatch && single
-          ? [
-              "",
-              `Batched amortization: ${BATCH_N} receipts in one batch -> ` +
-                `${(perReceiptBatch.cu / BATCH_N).toFixed(1)} CU/receipt vs ` +
-                `${single.cu} CU for a single post_receipt.`,
-            ]
-          : []),
-        "",
-        end,
-      ].join("\n");
-      const cur = fs.readFileSync(notesPath, "utf8");
-      const b = cur.indexOf(begin);
-      const e = cur.indexOf(end);
-      if (b !== -1 && e !== -1) {
-        fs.writeFileSync(
-          notesPath,
-          cur.slice(0, b) + table + cur.slice(e + end.length)
-        );
-      }
     }
   });
 });

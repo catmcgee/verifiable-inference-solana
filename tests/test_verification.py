@@ -14,7 +14,7 @@ from cli.attest_verify import (
     _verify_snp_policy,
     verify_attestation,
 )
-from cli.devnet import parse_attestation, parse_receipt
+from server.receipts.solana import parse_attestation, parse_receipt
 from server.receipts.signer import HPKE_BINDING_DOMAIN
 
 
@@ -134,6 +134,7 @@ class HpkeBindingTests(unittest.TestCase):
         pubkey = bytes(self.signer.verify_key)
         doc = {
             "grade": "none",
+            "binding_version": 2,
             "enclave_pubkey_b64": base64.b64encode(pubkey).decode(),
             "registry_hash": registry_hash.hex(),
             "server_build_hash": build_hash.hex(),
@@ -148,6 +149,26 @@ class HpkeBindingTests(unittest.TestCase):
         self.assertFalse(required.trusted)
         self.assertTrue(component.trusted, component.reason)
         self.assertIn("does not expose an HPKE key", component.reason)
+
+    def test_legacy_binding_uses_model_hash(self) -> None:
+        pubkey = bytes(self.signer.verify_key)
+        model_hash = bytes.fromhex("20" * 32)
+        build_hash = bytes.fromhex("40" * 32)
+        doc = {
+            "grade": "none",
+            "binding_version": 1,
+            "enclave_pubkey_b64": base64.b64encode(pubkey).decode(),
+            "model_weights_hash": model_hash.hex(),
+            "server_build_hash": build_hash.hex(),
+            "report_data": hashlib.sha256(
+                pubkey + model_hash + build_hash
+            ).hexdigest(),
+        }
+
+        verdict = verify_attestation(
+            doc, allow_unattested=True, require_hpke=False
+        )
+        self.assertTrue(verdict.trusted, verdict.reason)
 
 
 if __name__ == "__main__":

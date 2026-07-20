@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run inside the cloned 32-vCPU plain twin. Mirrors the feasible TLS portion of
-# run-legB-snp-sweep.sh and writes a distinct raw artifact.
+# the matched SNP matrix and writes a distinct raw artifact.
 set -euo pipefail
 
 cd "$HOME/verified-inference"
@@ -13,49 +13,31 @@ fi
 if ! mountpoint -q /mnt/models; then
   sudo mount -o ro /dev/vdc /mnt/models
 fi
-test -f /mnt/models/models/llama-3.1-8b-instruct-Q8_0.gguf
-
 OUT="runs/legA-snp-twin-full.jsonl"
-BITNET_BIN="/mnt/models/bitnet-bin/llama-server"
-LLAMA_BIN="/mnt/models/llamacpp-bin/llama-server"
-BITNET_MODEL="/mnt/models/models/bitnet-b1.58-2B-4T-i2_s.gguf"
-Q4_MODEL="/mnt/models/models/llama-3.1-8b-instruct-Q4_K_M.gguf"
-Q8_MODEL="/mnt/models/models/llama-3.1-8b-instruct-Q8_0.gguf"
-Q70_MODEL="/mnt/models/models/llama-3.3-70b-instruct-Q4_K_M.gguf"
 LOGS="$HOME/logs/legA-snp-twin"
 mkdir -p "$LOGS" runs
+RUNTIME_PID=
 
 stop_runtimes() {
-  pkill -f 'llama-server.*--port 860[1-4]' 2>/dev/null || true
-  sleep 3
+  if [ -n "$RUNTIME_PID" ]; then
+    kill "$RUNTIME_PID" 2>/dev/null || true
+    wait "$RUNTIME_PID" 2>/dev/null || true
+    RUNTIME_PID=
+  fi
 }
+trap stop_runtimes EXIT
 
 start_runtimes() {
   local threads="$1"
   stop_runtimes
-  env LD_LIBRARY_PATH=/mnt/models/bitnet-bin nohup "$BITNET_BIN" \
-    -m "$BITNET_MODEL" --port 8601 --host 127.0.0.1 -t "$threads" \
-    -c 16384 --parallel 8 --cont-batching --no-warmup \
-    >"$LOGS/bitnet-t${threads}.log" 2>&1 &
-  env LD_LIBRARY_PATH=/mnt/models/llamacpp-bin nohup "$LLAMA_BIN" \
-    -m "$Q4_MODEL" --port 8602 --host 127.0.0.1 -t "$threads" \
-    -c 16384 --parallel 8 --cont-batching --no-warmup \
-    >"$LOGS/8b-q4-t${threads}.log" 2>&1 &
-  env LD_LIBRARY_PATH=/mnt/models/llamacpp-bin nohup "$LLAMA_BIN" \
-    -m "$Q8_MODEL" --port 8603 --host 127.0.0.1 -t "$threads" \
-    -c 16384 --parallel 8 --cont-batching --no-warmup \
-    >"$LOGS/8b-q8-t${threads}.log" 2>&1 &
-  env LD_LIBRARY_PATH=/mnt/models/llamacpp-bin nohup "$LLAMA_BIN" \
-    -m "$Q70_MODEL" --port 8604 --host 127.0.0.1 -t "$threads" \
-    -c 16384 --parallel 8 --cont-batching --no-warmup \
-    >"$LOGS/70b-q4-t${threads}.log" 2>&1 &
-  for port in 8601 8602 8603 8604; do
-    for _ in $(seq 1 360); do
-      curl -sf --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null && break
-      sleep 2
-    done
-    curl -sf --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null || exit 3
-  done
+  VINFER_BITNETCPP_SERVER=/mnt/models/bitnet-bin/llama-server \
+  VINFER_LLAMACPP_SERVER=/mnt/models/llamacpp-bin/llama-server \
+    nohup uv run python -m server.serve_models \
+      --models bitnet-2b,8b-q4,8b-q8,70b-q4 --threads "$threads" \
+      --context-cap 16384 --parallel 8 >"$LOGS/models-t${threads}.log" 2>&1 &
+  RUNTIME_PID=$!
+  uv run python -m server.serve_models \
+    --models bitnet-2b,8b-q4,8b-q8,70b-q4 --status --startup-timeout 720
 }
 
 restart_vinfer() {

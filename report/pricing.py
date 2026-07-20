@@ -17,7 +17,7 @@ from pathlib import Path
 
 import yaml
 
-from report.generate import discard_request_warmups
+from report.analysis import discard_request_warmups
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "models.yaml"

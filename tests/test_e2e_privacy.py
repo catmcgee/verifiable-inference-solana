@@ -13,7 +13,9 @@ from server.crypto.session_box import (
     client_open_response,
     client_open_session,
 )
-from server.main import SealedInferRequest, app, chat_e2e
+from fastapi import HTTPException
+
+from server.main import SealedChatRequest, app, chat_e2e
 from server.receipts.request_hash import canonical_request
 
 
@@ -27,7 +29,7 @@ class EndToEndPrivacyTests(unittest.IsolatedAsyncioTestCase):
             {"schema": "vinfer-e2e-chat-v1", "messages": messages}
         ).encode()
         wire, session_key = client_open_session(enclave_key.public_key_b64, plaintext)
-        request = SealedInferRequest(model="bitnet-2b", max_tokens=17, **wire)
+        request = SealedChatRequest(model="bitnet-2b", max_tokens=17, **wire)
         result = {
             "text": response_text,
             "metrics": {"e2e_ms": 1.0},
@@ -95,7 +97,7 @@ class EndToEndPrivacyTests(unittest.IsolatedAsyncioTestCase):
             enclave_key.public_key_b64,
             json.dumps({"schema": "vinfer-e2e-chat-v1", "messages": messages}).encode(),
         )
-        request = SealedInferRequest(
+        request = SealedChatRequest(
             model="bitnet-2b", max_tokens=8, stream=True, **wire
         )
         result = {
@@ -151,6 +153,26 @@ class EndToEndPrivacyTests(unittest.IsolatedAsyncioTestCase):
             ).decode(),
             response_text,
         )
+
+    async def test_sealed_chat_validates_inner_messages(self):
+        enclave_key = EnclaveHpkeKey()
+        wire, _ = client_open_session(
+            enclave_key.public_key_b64,
+            json.dumps(
+                {
+                    "schema": "vinfer-e2e-chat-v1",
+                    "messages": [{"role": "tool", "content": "not allowed"}],
+                }
+            ).encode(),
+        )
+        app.state.hpke = enclave_key
+        with (
+            patch("server.main.access.require", return_value=("browser-session", None)),
+            patch("server.main._servable"),
+            self.assertRaises(HTTPException) as raised,
+        ):
+            await chat_e2e(SealedChatRequest(model="bitnet-2b", **wire), object())
+        self.assertEqual(raised.exception.status_code, 400)
 
     @unittest.skipUnless(
         shutil.which("node") and Path("web/node_modules/@hpke/core").exists(),

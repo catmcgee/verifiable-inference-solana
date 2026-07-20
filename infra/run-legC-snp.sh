@@ -19,8 +19,10 @@ test -r /dev/sev-guest -a -w /dev/sev-guest
 export VINFER_PROXY_TOKEN
 VINFER_PROXY_TOKEN=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
 export VINFER_SEV_MODE=snp
-export VINFER_C_PROXY_API=http://127.0.0.1:8480/v1/messages
+export VINFER_C_PROXY_API=http://127.0.0.1:8480/v1/chat/completions
 export VINFER_C_N="${VINFER_C_N:-8}"
+export VINFER_REQUIRE_AUTH=1
+export VINFER_AUTH_TOKEN="$VINFER_PROXY_TOKEN"
 
 uv run uvicorn server.proxy.legc_proxy:app --host 127.0.0.1 --port 8480 \
   --no-access-log >/tmp/legC-proxy.log 2>&1 &

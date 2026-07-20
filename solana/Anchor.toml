@@ -13,8 +13,8 @@ verified_inference = "Dp5LxL9XHZUVXK129rxwBafqHMg1Y29Zda2svx8vXEkx"
 verified_inference = "Dp5LxL9XHZUVXK129rxwBafqHMg1Y29Zda2svx8vXEkx"
 
 [provider]
-cluster = "devnet"
-wallet = "./.devnet-deployer.json"
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

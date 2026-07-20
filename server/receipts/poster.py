@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import os
 import struct
 import threading
 import time
@@ -19,14 +18,15 @@ from solders.message import Message
 from solders.pubkey import Pubkey
 from solders.transaction import Transaction
 
-from cli.devnet import parse_attestation, parse_receipt
 from server.receipts.signer import receipt_message, verify_receipt
-
-PROGRAM_ID = Pubkey.from_string(
-    os.environ.get(
-        "VINFER_SOLANA_PROGRAM", "Dp5LxL9XHZUVXK129rxwBafqHMg1Y29Zda2svx8vXEkx"
-    )
+from server.receipts.solana import (
+    PROGRAM_ID,
+    attestation_address,
+    parse_attestation,
+    parse_receipt,
+    receipt_pda,
 )
+
 ED25519_PROGRAM = Pubkey.from_string("Ed25519SigVerify111111111111111111111111111")
 INSTRUCTIONS_SYSVAR = Pubkey.from_string("Sysvar1nstructions1111111111111111111111111")
 SYSTEM_PROGRAM = Pubkey.from_string("11111111111111111111111111111111")
@@ -70,16 +70,6 @@ class ReceiptPoster:
         return base64.b64decode(value["data"][0]) if value else None
 
     @staticmethod
-    def attestation_pda(enclave: bytes) -> Pubkey:
-        return Pubkey.find_program_address([b"attestation", enclave], PROGRAM_ID)[0]
-
-    @staticmethod
-    def receipt_pda(enclave: bytes, index: int) -> Pubkey:
-        return Pubkey.find_program_address(
-            [b"receipt", enclave, struct.pack("<Q", index)], PROGRAM_ID
-        )[0]
-
-    @staticmethod
     def _ed25519_instruction(
         enclave: bytes, signature: bytes, message: bytes
     ) -> Instruction:
@@ -111,8 +101,8 @@ class ReceiptPoster:
         self, receipt: dict, index: int
     ) -> tuple[Instruction, Pubkey]:
         enclave = base64.b64decode(receipt["enclave_pubkey_b64"], validate=True)
-        attestation = self.attestation_pda(enclave)
-        receipt_pda = self.receipt_pda(enclave, index)
+        attestation = attestation_address(enclave)
+        receipt_address = receipt_pda(enclave, index)
         data = POST_RECEIPT_DISCRIMINATOR + b"".join(
             (
                 enclave,
@@ -125,11 +115,11 @@ class ReceiptPoster:
         accounts = [
             AccountMeta(self._payer.pubkey(), True, True),
             AccountMeta(attestation, False, True),
-            AccountMeta(receipt_pda, False, True),
+            AccountMeta(receipt_address, False, True),
             AccountMeta(INSTRUCTIONS_SYSVAR, False, False),
             AccountMeta(SYSTEM_PROGRAM, False, False),
         ]
-        return Instruction(PROGRAM_ID, data, accounts), receipt_pda
+        return Instruction(PROGRAM_ID, data, accounts), receipt_address
 
     def _confirm(self, signature: str, timeout_s: float = 60) -> None:
         deadline = time.monotonic() + timeout_s
@@ -162,7 +152,7 @@ class ReceiptPoster:
         signature = base64.b64decode(receipt["sig_b64"], validate=True)
 
         with self._lock:
-            attestation_pda = self.attestation_pda(enclave)
+            attestation_pda = attestation_address(enclave)
             attestation_data = self._account(attestation_pda)
             if attestation_data is None:
                 raise ReceiptPostError("enclave attestation PDA is absent")
@@ -170,7 +160,7 @@ class ReceiptPoster:
             if attestation["enclave_pubkey"] != enclave.hex():
                 raise ReceiptPostError("attestation PDA enclave key mismatch")
             index = int(attestation["receipt_count"])
-            program_ix, receipt_pda = self._program_instruction(receipt, index)
+            program_ix, receipt_address = self._program_instruction(receipt, index)
             ed25519_ix = self._ed25519_instruction(enclave, signature, message)
             latest = self._rpc("getLatestBlockhash", [{"commitment": "confirmed"}])
             blockhash = Hash.from_string(latest["value"]["blockhash"])
@@ -196,7 +186,7 @@ class ReceiptPoster:
             self._confirm(tx_signature)
             confirm_ms = round((time.perf_counter() - confirm_start) * 1000, 3)
 
-            posted_data = self._account(receipt_pda)
+            posted_data = self._account(receipt_address)
             if posted_data is None:
                 raise ReceiptPostError(
                     "confirmed transaction created no receipt account"
@@ -230,7 +220,7 @@ class ReceiptPoster:
             return {
                 "onchain_status": "confirmed",
                 "receipt_index": index,
-                "receipt_pda": str(receipt_pda),
+                "receipt_pda": str(receipt_address),
                 "receipt_tx": tx_signature,
                 "receipt_post_ms": post_ms,
                 "receipt_confirm_ms": confirm_ms,

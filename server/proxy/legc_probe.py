@@ -22,6 +22,28 @@ VALIDATOR = jsonschema.Draft202012Validator(
 DIRECT_API = "https://api.anthropic.com/v1/messages"
 
 
+def parse_stream_event(event: dict, leg: str) -> tuple[bool, dict]:
+    """Return whether an event contains text and any token usage it carries."""
+    error = event.get("error")
+    if error:
+        raise RuntimeError(
+            f"provider stream error: {error.get('type', 'unknown')}: "
+            f"{error.get('message', 'no message')}"
+        )
+    if leg == "C-direct":
+        if event.get("type") == "content_block_delta":
+            return bool(event.get("delta", {}).get("text")), {}
+        if event.get("type") == "message_start":
+            return False, event.get("message", {}).get("usage", {})
+        if event.get("type") == "message_delta":
+            return False, event.get("usage", {})
+        return False, {}
+
+    choices = event.get("choices", [])
+    text = choices[0].get("delta", {}).get("content") if choices else None
+    return bool(text), event.get("usage", {})
+
+
 def prompt_for_tokens(target: int) -> str:
     prefix = (
         "Explain how memory bandwidth limits autoregressive inference. "
@@ -66,19 +88,14 @@ def measure(
             for line in response.iter_lines():
                 if not line.startswith("data: "):
                     continue
-                event = json.loads(line[6:])
-                if event.get("type") == "error":
-                    error = event.get("error", {})
-                    raise RuntimeError(
-                        f"provider stream error: {error.get('type', 'unknown')}: "
-                        f"{error.get('message', 'no message')}"
-                    )
-                if event.get("type") == "content_block_delta":
+                payload = line[6:]
+                if payload == "[DONE]":
+                    continue
+                event = json.loads(payload)
+                has_text, event_usage = parse_stream_event(event, leg)
+                if has_text:
                     tok_times.append(time.perf_counter())
-                elif event.get("type") == "message_start":
-                    usage.update(event.get("message", {}).get("usage", {}))
-                elif event.get("type") == "message_delta":
-                    usage.update(event.get("usage", {}))
+                usage.update(event_usage)
     if not tok_times:
         raise RuntimeError("no stream deltas")
     itls = [
@@ -86,7 +103,9 @@ def measure(
     ] or [0.0]
     ordered = sorted(itls)
     generated_seconds = tok_times[-1] - tok_times[0]
-    output_token_count = int(usage.get("output_tokens", len(tok_times)))
+    output_token_count = int(
+        usage.get("output_tokens", usage.get("completion_tokens", len(tok_times)))
+    )
     record = {
         "run_id": run_id,
         "leg": leg,
@@ -129,7 +148,7 @@ def run(out: Path) -> dict:
     api_key = os.environ["ANTHROPIC_API_KEY"]
     proxy_token = os.environ["VINFER_PROXY_TOKEN"]
     proxy_api = os.environ.get(
-        "VINFER_C_PROXY_API", "http://127.0.0.1:8480/v1/messages"
+        "VINFER_C_PROXY_API", "http://127.0.0.1:8480/v1/chat/completions"
     )
     model = os.environ.get("VINFER_C_MODEL", "claude-haiku-4-5-20251001")
     n = int(os.environ.get("VINFER_C_N", "8"))

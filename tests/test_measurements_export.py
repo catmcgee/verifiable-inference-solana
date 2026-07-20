@@ -22,8 +22,7 @@ class MeasurementsExportTests(unittest.TestCase):
             (ROOT / "solana" / "cu-measurements.json").read_text()
         )
         self.assertEqual(measurements["devnet"]["post_receipt_cu"], 13_580)
-        self.assertEqual(measurements["localnet"]["batch_size"], 32)
-        self.assertNotIn("post_receipt_batch_cu", measurements["devnet"])
+        self.assertEqual(set(measurements), {"program_id", "devnet"})
 
 
 if __name__ == "__main__":

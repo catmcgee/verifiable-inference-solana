@@ -15,12 +15,18 @@ import os
 import time
 from dataclasses import dataclass
 
-from fastapi import Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field
 
 
 COOKIE_NAME = "vinfer_test_session"
 DEFAULT_TTL_SECONDS = 8 * 60 * 60
+router = APIRouter()
+
+
+class AuthSessionRequest(BaseModel):
+    access_code: str = Field(min_length=1, max_length=512)
 
 
 @dataclass(frozen=True)
@@ -162,3 +168,38 @@ def clear_session_cookie(response: Response) -> None:
         httponly=True,
         samesite="strict",
     )
+
+
+@router.get("/v1/auth/session", summary="Check browser test-session status")
+async def auth_session_status(request: Request):
+    config = settings()
+    mode = access_mode(request)
+    return JSONResponse(
+        {"required": config.required, "authenticated": mode is not None, "mode": mode},
+        headers={"Cache-Control": "no-store, private"},
+    )
+
+
+@router.post("/v1/auth/session", summary="Create a browser test session")
+async def auth_session_create(req: AuthSessionRequest):
+    if not access_code_valid(req.access_code):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "invalid access code"},
+            headers={"Cache-Control": "no-store, private"},
+        )
+    response = JSONResponse(
+        {"required": settings().required, "authenticated": True},
+        headers={"Cache-Control": "no-store, private"},
+    )
+    set_session_cookie(response)
+    return response
+
+
+@router.delete("/v1/auth/session", summary="End a browser test session")
+async def auth_session_delete():
+    response = JSONResponse(
+        {"authenticated": False}, headers={"Cache-Control": "no-store, private"}
+    )
+    clear_session_cookie(response)
+    return response
