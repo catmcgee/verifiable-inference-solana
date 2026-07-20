@@ -5,7 +5,7 @@ Measures when open-source inference inside a Trusted Execution Environment
 with and without a TEE, measures a Claude proxy separately, anchors evidence on
 Solana devnet, and exposes the results through an API, CLI, report, and browser.
 
-- Console: `https://verifiable-inference-mu.vercel.app`
+- Console: `https://verified-inference.vercel.app`
 - API: `https://verified-inference.213.239.141.40.sslip.io`
 
 ## How it works

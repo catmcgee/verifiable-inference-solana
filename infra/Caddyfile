@@ -32,5 +32,5 @@ verified-inference.213.239.141.40.sslip.io {
 }
 
 console.213.239.141.40.sslip.io {
-	redir https://verifiable-inference-mu.vercel.app{uri} permanent
+	redir https://verified-inference.vercel.app{uri} permanent
 }
