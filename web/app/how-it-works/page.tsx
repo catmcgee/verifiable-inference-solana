@@ -2,6 +2,7 @@ import {
   Activity,
   Box,
   CheckCircle2,
+  Clock3,
   Cloud,
   Code2,
   Cpu,
@@ -12,7 +13,9 @@ import {
   MonitorDot,
   Network,
   Server,
+  ShieldCheck,
   SquareTerminal,
+  WalletCards,
 } from "lucide-react";
 import { Masthead } from "@/components/Masthead";
 
@@ -219,6 +222,111 @@ export default function HowItWorksPage() {
                 <p>It does not remove trust in AMD hardware, the approved policy, or the operator that chose that policy.</p>
                 <p>It does not protect against a modified web client that reads text before encryption; the loaded client bundle remains part of the trust base.</p>
               </div>
+            </div>
+          </section>
+
+          <section className="how-section solana-section">
+            <div className="eyebrow">Solana state</div>
+            <h2>One app program, two PDA account types</h2>
+            <p className="solana-lede">
+              Solana does not run the model or receive chat text. It keeps a
+              public link from one TEE boot key to its attestation record and
+              numbered, hash-only inference receipts.
+            </p>
+
+            <div
+              className="solana-map"
+              aria-label="How the Solana programs, accounts, and PDAs work together"
+            >
+              <div className="solana-actors">
+                <article>
+                  <span>off-chain source</span>
+                  <Fingerprint />
+                  <div>
+                    <h3>TEE boot key</h3>
+                    <p>Signs each inference&apos;s prompt, response, and model hashes.</p>
+                  </div>
+                </article>
+                <article>
+                  <span>Solana account</span>
+                  <WalletCards />
+                  <div>
+                    <h3>Relay payer wallet</h3>
+                    <p>Submits transactions and pays their fees and account rent.</p>
+                  </div>
+                </article>
+              </div>
+
+              <div className="solana-submit" aria-hidden="true">
+                <span>submits a transaction</span>
+                <b>↓</b>
+              </div>
+
+              <div className="solana-ledger">
+                <div className="solana-helpers">
+                  <span className="solana-column-label">Solana helpers</span>
+                  <article>
+                    <ShieldCheck />
+                    <div><b>Ed25519 program</b><span>verifies the enclave signature</span></div>
+                  </article>
+                  <article>
+                    <SquareTerminal />
+                    <div><b>Instructions sysvar</b><span>proves that verification came first</span></div>
+                  </article>
+                  <article>
+                    <Database />
+                    <div><b>System program</b><span>creates both payer-funded PDA types</span></div>
+                  </article>
+                  <article>
+                    <Clock3 />
+                    <div><b>Clock sysvar</b><span>supplies each recorded slot</span></div>
+                  </article>
+                </div>
+
+                <div className="solana-map-arrow" aria-hidden="true">→</div>
+
+                <article className="solana-program">
+                  <span>app program</span>
+                  <Box />
+                  <h3>Verified Inference</h3>
+                  <code>Dp5L…vXEkx</code>
+                  <div>
+                    <b>register_attestation</b>
+                    <p>Records a previously verified boot identity.</p>
+                  </div>
+                  <div>
+                    <b>post_receipt</b>
+                    <p>Requires the signature check and a registered boot key.</p>
+                  </div>
+                </article>
+
+                <div className="solana-map-arrow" aria-hidden="true">→</div>
+
+                <div className="solana-accounts">
+                  <span className="solana-column-label">Program-owned PDAs</span>
+                  <article className="attestation-account">
+                    <span>one per TEE boot</span>
+                    <h3>Attestation PDA</h3>
+                    <code>[&quot;attestation&quot;, boot_key]</code>
+                    <p>Boot key, SNP measurement and grade, runtime, registry binding, slot, and next receipt index.</p>
+                  </article>
+                  <article className="receipt-account">
+                    <span>one per inference</span>
+                    <h3>Receipt PDA</h3>
+                    <code>[&quot;receipt&quot;, boot_key, index]</code>
+                    <p>Prompt, response, and model hashes; timestamp, slot, and index. No chat text or user identity.</p>
+                  </article>
+                </div>
+              </div>
+
+              <div className="solana-transactions">
+                <div><b>01 · boot registration</b><span>Verify the AMD evidence off-chain, then create the Attestation PDA.</span></div>
+                <div><b>02 · every inference</b><span>Verify the signature and post the next Receipt PDA in the same atomic transaction; then increment the attestation counter.</span></div>
+              </div>
+              <p className="solana-footnote">
+                No token program is involved. The payer can post and fund the
+                records, but it cannot forge the TEE boot key&apos;s signature.
+              </p>
             </div>
           </section>
 
