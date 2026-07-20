@@ -5,26 +5,6 @@ verified-inference.213.239.141.40.sslip.io {
 	request_body {
 		max_size 1MB
 	}
-	reverse_proxy 127.0.0.1:8479 {
-		flush_interval -1
-	}
-
-	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "no-referrer"
-		-Server
-	}
-}
-
-console.213.239.141.40.sslip.io {
-	encode zstd gzip
-	@body_too_large header_regexp Content-Length ^[0-9]{7,}$
-	respond @body_too_large "request body too large" 413
-	request_body {
-		max_size 1MB
-	}
-
 	handle_path /vinfer-a/* {
 		reverse_proxy 127.0.0.1:8481 {
 			flush_interval -1
@@ -37,16 +17,10 @@ console.213.239.141.40.sslip.io {
 		}
 	}
 
-	handle_path /vinfer/* {
+	handle {
 		reverse_proxy 127.0.0.1:8479 {
 			flush_interval -1
 		}
-	}
-
-	handle {
-		root * /srv/vinfer-web
-		try_files {path} {path}.html {path}/index.html
-		file_server
 	}
 
 	header {
@@ -55,4 +29,8 @@ console.213.239.141.40.sslip.io {
 		Referrer-Policy "no-referrer"
 		-Server
 	}
+}
+
+console.213.239.141.40.sslip.io {
+	redir https://verifiable-inference-mu.vercel.app{uri} permanent
 }

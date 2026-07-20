@@ -1,0 +1,27 @@
+[Unit]
+Description=verified-inference SEV-SNP API origin
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/verified-inference
+EnvironmentFile=/home/ubuntu/verified-inference/.env.local
+Environment=VINFER_SEV_MODE=snp
+Environment=VINFER_REQUIRE_AUTH=1
+Environment=VINFER_AUTH_COOKIE_PATH=/
+Environment=VINFER_AUTH_SECURE_COOKIE=1
+Environment=VINFER_AUTH_TOKEN_FILE=/home/ubuntu/.config/vinfer/origin-token
+Environment=VINFER_ACCESS_CODE_FILE=/home/ubuntu/.config/vinfer/access-code
+Environment=VINFER_RECEIPT_RELAY_URL=http://10.0.2.2:8480
+Environment=VINFER_RECEIPT_RELAY_TOKEN_FILE=/home/ubuntu/.config/vinfer/receipt-relay-token
+ExecStart=/bin/bash -c 'export VINFER_AUTH_TOKEN="$$(cat "$${VINFER_AUTH_TOKEN_FILE}")" VINFER_ACCESS_CODE="$$(cat "$${VINFER_ACCESS_CODE_FILE}")"; exec /home/ubuntu/verified-inference/.venv/bin/uvicorn server.main:app --host 0.0.0.0 --port 8477 --no-access-log'
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

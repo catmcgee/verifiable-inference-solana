@@ -5,7 +5,7 @@ Measures when open-source inference inside a Trusted Execution Environment
 with and without a TEE, measures a Claude proxy separately, anchors evidence on
 Solana devnet, and exposes the results through an API, CLI, report, and browser.
 
-- Console: `https://console.213.239.141.40.sslip.io`
+- Console: `https://verifiable-inference-mu.vercel.app`
 - API: `https://verified-inference.213.239.141.40.sslip.io`
 
 ## How it works
@@ -52,9 +52,9 @@ executed after launch. An isolated dm-verity measured-boot guest passes for
 BitNet; applying that immutable design to the public all-model guest is the main
 production blocker.
 
-The current measurements are useful but do not cover the complete experiment
-matrix. See [FIXES.md](FIXES.md) for the remaining work and
-[AUDIT.md](AUDIT.md) for evidence behind the claims above.
+The published dataset reports only the configurations that were actually
+measured. It does not extrapolate unmeasured model, context, thread, or
+encryption combinations.
 
 BitNet remains available because it is the 1.58-bit measurement anchor, but its
 published `i2_s` runtime produces unreliable chat answers in live checks. The

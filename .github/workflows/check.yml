@@ -46,3 +46,115 @@ jobs:
           mkdir -p "$HOME/.config/solana"
           solana-keygen new --no-bip39-passphrase --silent --force --outfile "$HOME/.config/solana/id.json"
       - run: make solana-test
+
+  deploy-backend:
+    name: deploy backend
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [core, solana]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: production-backend
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Classify changes
+        id: changes
+        shell: bash
+        run: |
+          git diff --name-only HEAD^ HEAD > "$RUNNER_TEMP/changed-files"
+          if grep -Eq '^(server/|models\.yaml$|attestation-policy\.json$|pyproject\.toml$|uv\.lock$)' "$RUNNER_TEMP/changed-files"; then
+            echo 'api=true' >> "$GITHUB_OUTPUT"
+          fi
+          if grep -Eq '^(models\.yaml$|server/(registry\.py|serve_models\.py|runtimes/))' "$RUNNER_TEMP/changed-files"; then
+            echo 'models=true' >> "$GITHUB_OUTPUT"
+          fi
+          if grep -Eq '^(pyproject\.toml$|uv\.lock$)' "$RUNNER_TEMP/changed-files"; then
+            echo 'dependencies=true' >> "$GITHUB_OUTPUT"
+          fi
+          if grep -Eq '^infra/.*\.service$' "$RUNNER_TEMP/changed-files"; then
+            echo 'units=true' >> "$GITHUB_OUTPUT"
+          fi
+          if grep -qx 'infra/Caddyfile' "$RUNNER_TEMP/changed-files"; then
+            echo 'caddy=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure deployment SSH
+        shell: bash
+        env:
+          DEPLOY_KEY: ${{ secrets.SUNBURST_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SUNBURST_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/vinfer-deploy"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/vinfer-deploy"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          install -m 600 /dev/null "$HOME/.ssh/config"
+          printf '%s\n' \
+            'Host sunburst-deploy' \
+            '  HostName 213.239.141.40' \
+            '  User ubuntu' \
+            '  IdentityFile ~/.ssh/vinfer-deploy' \
+            '  IdentitiesOnly yes' \
+            '  StrictHostKeyChecking yes' \
+            'Host vinfer-guest' \
+            '  HostName 127.0.0.1' \
+            '  Port 2223' \
+            '  User ubuntu' \
+            '  IdentityFile ~/.ssh/vinfer-deploy' \
+            '  IdentitiesOnly yes' \
+            '  ProxyJump sunburst-deploy' \
+            '  HostKeyAlias vinfer-guest' \
+            '  StrictHostKeyChecking yes' > "$HOME/.ssh/config"
+
+      - name: Sync checked source
+        run: |
+          rsync -az --delete \
+            --exclude .env.local \
+            --exclude .git \
+            --exclude .venv \
+            --exclude .vercel \
+            ./ sunburst-deploy:/home/ubuntu/verified-inference/
+          rsync -az --delete \
+            --exclude .env.local \
+            --exclude .git \
+            --exclude .venv \
+            --exclude .vercel \
+            ./ vinfer-guest:/home/ubuntu/verified-inference/
+
+      - name: Update dependencies
+        if: steps.changes.outputs.dependencies == 'true'
+        run: |
+          ssh sunburst-deploy 'cd /home/ubuntu/verified-inference && /home/ubuntu/.local/bin/uv sync --locked --no-dev'
+          ssh vinfer-guest 'cd /home/ubuntu/verified-inference && /home/ubuntu/.local/bin/uv sync --locked --no-dev'
+
+      - name: Install service definitions
+        if: steps.changes.outputs.units == 'true'
+        run: |
+          ssh sunburst-deploy 'sudo install -o root -g root -m 0644 /home/ubuntu/verified-inference/infra/vinfer-leg-a-models.service /home/ubuntu/verified-inference/infra/vinfer-leg-a-origin.service /home/ubuntu/verified-inference/infra/vinfer-receipt-relay.service /etc/systemd/system/ && sudo systemctl daemon-reload'
+          ssh vinfer-guest 'sudo install -o root -g root -m 0644 /home/ubuntu/verified-inference/infra/vinfer-main.service /home/ubuntu/verified-inference/infra/vinfer-leg-c-proxy.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now vinfer-main vinfer-leg-c-proxy'
+
+      - name: Reload Caddy
+        if: steps.changes.outputs.caddy == 'true'
+        run: |
+          ssh sunburst-deploy 'sudo caddy validate --adapter caddyfile --config /home/ubuntu/verified-inference/infra/Caddyfile && sudo install -o root -g root -m 0644 /home/ubuntu/verified-inference/infra/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy'
+
+      - name: Restart model services
+        if: steps.changes.outputs.models == 'true'
+        run: |
+          ssh sunburst-deploy 'sudo systemctl restart vinfer-leg-a-models && cd /home/ubuntu/verified-inference && .venv/bin/python -m server.serve_models --models bitnet-2b,8b-q4,8b-q8,70b-q4 --status --startup-timeout 900'
+
+      - name: Restart API services
+        if: steps.changes.outputs.api == 'true'
+        run: |
+          ssh sunburst-deploy 'sudo systemctl restart vinfer-receipt-relay vinfer-leg-a-origin'
+          ssh vinfer-guest 'sudo systemctl restart vinfer-main vinfer-leg-c-proxy'
+
+      - name: Verify public routes
+        run: |
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://verified-inference.213.239.141.40.sslip.io/v1/models >/dev/null
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://verified-inference.213.239.141.40.sslip.io/vinfer-a/v1/models >/dev/null
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://verified-inference.213.239.141.40.sslip.io/vinfer-c/v1/models >/dev/null

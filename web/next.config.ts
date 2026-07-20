@@ -5,16 +5,21 @@ import type { NextConfig } from "next";
 // still comes from NEXT_PUBLIC_VINFER_URL (default: local server).
 const VINFER_URL =
   process.env.NEXT_PUBLIC_VINFER_URL ?? "http://127.0.0.1:8477";
-const STATIC_EXPORT = process.env.VINFER_STATIC_EXPORT === "1";
 
-const nextConfig: NextConfig = STATIC_EXPORT
-  ? { output: "export", trailingSlash: true }
-  : {
-      async rewrites() {
-        return [
-          { source: "/vinfer/:path*", destination: `${VINFER_URL}/:path*` },
-        ];
+const nextConfig: NextConfig = {
+  async rewrites() {
+    return [
+      { source: "/vinfer/:path*", destination: `${VINFER_URL}/:path*` },
+      {
+        source: "/vinfer-a/:path*",
+        destination: `${VINFER_URL}/vinfer-a/:path*`,
       },
-    };
+      {
+        source: "/vinfer-c/:path*",
+        destination: `${VINFER_URL}/vinfer-c/:path*`,
+      },
+    ];
+  },
+};
 
 export default nextConfig;

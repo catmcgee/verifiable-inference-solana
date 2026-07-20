@@ -57,3 +57,4 @@ report/out/
 
 # Legacy local key material may still exist after removing the demo workflow.
 solana/.demo-enclave.json
+.vercel
