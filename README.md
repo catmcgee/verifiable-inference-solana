@@ -10,22 +10,28 @@ Solana devnet, and exposes the results through an API, CLI, report, and browser.
 
 ## How it works
 
-1. The browser verifies the AMD certificate chain, signed Secure Encrypted
-   Virtualization with Secure Nested Paging (SEV-SNP) report, local policy,
-   boot key, and Solana attestation record.
+1. Vercel serves the frontend. In the browser, it verifies the AMD certificate
+   chain, signed Secure Encrypted Virtualization with Secure Nested Paging
+   (SEV-SNP) report, local policy, boot key, and Solana attestation record. It
+   uses `@solana/addresses` for read-only PDA derivation; no user wallet signs.
 2. Hybrid Public Key Encryption (HPKE) seals browser chat to a key created
    inside the verified guest. The guest encrypts generated text back to the
    browser.
-3. Caddy handles public HTTPS and forwards the request through a loopback-only
-   host port into the confidential virtual machine. On the sealed browser path,
+3. Caddy is the HTTPS and reverse-proxy entry point for the inference API on
+   the bare-metal server. It forwards the request through a loopback-only host
+   port into the confidential virtual machine. On the sealed browser path,
    Caddy and the normal host forwarding path see routing metadata and
-   ciphertext, not chat text.
+   ciphertext, not chat text. Nginx, Traefik, HAProxy, Envoy, or a cloud load
+   balancer could fill this role; Caddy is used for its small configuration and
+   automatic certificates.
 4. FastAPI and the selected `llama.cpp` or `bitnet.cpp` runtime execute inside
    a read-only dm-verity guest. The public guest has no SSH service or QEMU
    monitor; deployment work happens in a separate, non-public builder VM.
-5. The guest signs fixed-size prompt, response, and model hashes. A host relay
-   posts those hashes and signature metadata to Solana devnet. Prompt text,
-   response text, chat history, and user identity are never posted on-chain.
+5. The guest's in-memory boot key signs fixed-size prompt, response, and model
+   hashes. A separate host relay wallet signs and funds the Solana transaction.
+   One Attestation PDA represents that boot, and each successfully anchored
+   inference creates one numbered Receipt PDA. Prompt text, response text, chat
+   history, and user identity are never posted on-chain.
 
 The loaded browser code remains part of the trust boundary. Receipt hashes do
 not expose text directly, but low-entropy text can still be tested by guessing

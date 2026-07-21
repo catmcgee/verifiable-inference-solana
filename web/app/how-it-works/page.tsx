@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   Clock3,
   Cloud,
-  Code2,
   Cpu,
   Database,
   Fingerprint,
@@ -137,32 +136,38 @@ export default function HowItWorksPage() {
 
           <section className="how-section state-section">
             <div className="eyebrow">Execution identity</div>
-            <h2>What the current deployment proves</h2>
+            <h2>A verified boot identity is a machine fingerprint</h2>
             <div className="state-grid">
               <article className="state-item live">
-                <div className="state-title"><Activity size={18} /><b>Live now</b></div>
-                <h3>Proves a real TEE started</h3>
+                <div className="state-title"><Fingerprint size={18} /><b>What it identifies</b></div>
+                <h3>One exact TEE launch</h3>
                 <p>
-                  The browser verifies the signed launch report, policy, boot
-                  key, and receipt. The public guest can still be changed after
-                  it starts, so this does not yet prove the exact server code
-                  and model files stayed unchanged.
+                  AMD signs a measurement of the virtual machine&apos;s boot. The
+                  browser checks that measurement, the server build, execution
+                  mode, model registry, and a temporary public key created
+                  inside that guest against the approved policy.
                 </p>
-                <span>Current scope: real TEE, files not fixed</span>
+                <span>It identifies software and a boot, not a person or login.</span>
               </article>
               <article className="state-item target">
-                <div className="state-title"><Code2 size={18} /><b>Next step</b></div>
-                <h3>Prove the exact code and model</h3>
+                <div className="state-title"><Activity size={18} /><b>How long it lasts</b></div>
+                <h3>One boot key can sign many inferences</h3>
                 <p>
-                  The hardened version makes the server and model files
-                  read-only, checks their hashes before starting, and binds
-                  that identity into the attestation. It works in an isolated
-                  BitNet test guest but is not public yet. This strengthens the
-                  TEE route; it is not a zero-knowledge proof.
+                  The key remains in memory while that guest is running. A
+                  reboot creates a new key and therefore a new boot identity,
+                  even when the approved measurement is unchanged. The old
+                  public records remain as history, but the old private key is
+                  not saved.
                 </p>
-                <span>Status: tested with BitNet, public cutover pending</span>
+                <span>Reboot → new boot key → new Attestation PDA.</span>
               </article>
             </div>
+            <p className="tee-definition">
+              The live public guest uses measured direct boot and read-only
+              dm-verity code and model volumes. This proves which approved
+              environment produced a signed receipt. It does not prove that
+              the model&apos;s answer is correct or that an old boot is still online.
+            </p>
           </section>
 
           <section className="how-section verify-focus">
@@ -225,13 +230,53 @@ export default function HowItWorksPage() {
             </div>
           </section>
 
+          <section className="how-section inference-section">
+            <div className="eyebrow">Inference lifecycle</div>
+            <h2>One Send is one inference</h2>
+            <p className="inference-lede">
+              A chat message and an inference are not quite the same thing.
+              One request can contain the system message and the full earlier
+              conversation, but pressing Send starts one new model run.
+            </p>
+            <div className="inference-flow" aria-label="Lifecycle of one inference request">
+              <article>
+                <span>01</span>
+                <h3>Receive one request</h3>
+                <p>The request contains the chosen model, token limit, and one or many chat messages.</p>
+              </article>
+              <article>
+                <span>02</span>
+                <h3>Start inference</h3>
+                <p>After validation and TEE decryption, the model begins processing that complete message list.</p>
+              </article>
+              <article>
+                <span>03</span>
+                <h3>Generate tokens</h3>
+                <p>The model produces the assistant answer. Streaming changes delivery, not the number of inferences.</p>
+              </article>
+              <article>
+                <span>04</span>
+                <h3>Finish and sign</h3>
+                <p>Generation ends at a stop condition or token limit. The TEE then signs the request, response, and model hashes.</p>
+              </article>
+            </div>
+            <div className="inference-rules">
+              <div><b>Send once</b><span>one inference and one signed receipt</span></div>
+              <div><b>Retry or regenerate</b><span>a new inference and a new receipt</span></div>
+              <div><b>Successful on-chain anchor</b><span>one new Receipt PDA</span></div>
+              <div><b>Request fails before completion</b><span>no normal completion receipt or Receipt PDA</span></div>
+            </div>
+          </section>
+
           <section className="how-section solana-section">
             <div className="eyebrow">Solana state</div>
-            <h2>One app program, two PDA account types</h2>
+            <h2>One program, one boot account, many inference accounts</h2>
             <p className="solana-lede">
               Solana does not run the model or receive chat text. It keeps a
-              public link from one TEE boot key to its attestation record and
-              numbered, hash-only inference receipts.
+              public link from a TEE boot key to one attestation record and its
+              numbered, hash-only inference receipts. A Program Derived Address
+              (PDA) is a predictable on-chain account address, not a new process
+              or a new TEE.
             </p>
 
             <div
@@ -240,19 +285,27 @@ export default function HowItWorksPage() {
             >
               <div className="solana-actors">
                 <article>
-                  <span>off-chain source</span>
+                  <span>signs receipt contents</span>
                   <Fingerprint />
                   <div>
                     <h3>TEE boot key</h3>
-                    <p>Signs each inference&apos;s prompt, response, and model hashes.</p>
+                    <p>Signs each completed inference&apos;s prompt, response, and model hashes. It holds no SOL.</p>
                   </div>
                 </article>
                 <article>
-                  <span>Solana account</span>
+                  <span>signs the Solana transaction</span>
                   <WalletCards />
                   <div>
                     <h3>Relay payer wallet</h3>
                     <p>Submits transactions and pays their fees and account rent.</p>
+                  </div>
+                </article>
+                <article>
+                  <span>read-only verifier</span>
+                  <MonitorDot />
+                  <div>
+                    <h3>Browser</h3>
+                    <p>Derives the PDA addresses and reads devnet accounts. It connects no wallet and signs nothing.</p>
                   </div>
                 </article>
               </div>
@@ -320,25 +373,48 @@ export default function HowItWorksPage() {
               </div>
 
               <div className="solana-transactions">
-                <div><b>01 · boot registration</b><span>Verify the AMD evidence off-chain, then create the Attestation PDA.</span></div>
-                <div><b>02 · every inference</b><span>Verify the signature and post the next Receipt PDA in the same atomic transaction; then increment the attestation counter.</span></div>
+                <div><b>01 · once per boot</b><span>Verify the AMD evidence off-chain, then register that boot key in one Attestation PDA.</span></div>
+                <div><b>02 · after generation</b><span>The TEE signs the completed inference hashes with that same in-memory boot key.</span></div>
+                <div><b>03 · successful anchor</b><span>The relay signs the outer transaction. Solana verifies the TEE signature, creates the next Receipt PDA, and increments the counter atomically.</span></div>
               </div>
               <p className="solana-footnote">
-                No token program is involved. The payer can post and fund the
-                records, but it cannot forge the TEE boot key&apos;s signature.
+                The frontend uses <code>@solana/addresses</code> only for
+                read-only address derivation. No Phantom wallet or token
+                program is involved. The payer can deliver and fund a record,
+                but it cannot forge what the TEE signed. An inference still has
+                a signed receipt if Solana posting fails; only a confirmed post
+                has a Receipt PDA.
               </p>
             </div>
           </section>
 
           <section className="how-section deployment-focus">
             <div className="eyebrow">Deployment</div>
-            <h2>How a public request reaches the TEE</h2>
+            <h2>Vercel hosts the site; Caddy fronts the model server</h2>
             <p className="deployment-lede">
-              The application runs on the Sunburst bare-metal server. Caddy is
-              the only public web entry point; it handles HTTPS and forwards
-              requests over a private host connection to the confidential
-              virtual machine.
+              These are two separate jobs. Vercel deploys the Next.js frontend
+              at <code>verified-inference.vercel.app</code>. The models and TEE
+              run on the Sunburst bare-metal server, so that server still needs
+              a safe public HTTPS entry point for its API. Caddy provides it at
+              <code>vinfer.usefrogpay.com</code>.
             </p>
+
+            <div className="hosting-split">
+              <article>
+                <span>frontend platform</span>
+                <Cloud />
+                <h3>Vercel</h3>
+                <p>Builds and serves the browser interface, with automatic frontend deploys from <code>main</code>.</p>
+                <b>Stores no model weights and does not run the TEE.</b>
+              </article>
+              <article>
+                <span>backend web server</span>
+                <Network />
+                <h3>Caddy</h3>
+                <p>Runs as a Linux system service on the Sunburst host OS, outside the TEE. It obtains and renews the API&apos;s TLS certificate, redirects HTTP, and reverse-proxies requests to private local ports.</p>
+                <b>It is the API front door, not the frontend host.</b>
+              </article>
+            </div>
 
             <div className="deploy-route" aria-label="Deployed request path">
               <article
@@ -346,16 +422,16 @@ export default function HowItWorksPage() {
                 tabIndex={0}
                 data-tooltip="The browser loads the console over HTTPS. For TEE inference it verifies the attestation, then seals the chat before sending it."
               >
-                <span>1 · internet</span>
+                <span>1 · Vercel-loaded app</span>
                 <Globe2 />
                 <b>Browser</b>
-                <p>Loads the console and starts an HTTPS request.</p>
+                <p>Loads the console from Vercel, then calls the separate API.</p>
               </article>
               <div className="deploy-connector" aria-hidden="true">→</div>
               <article
                 className="deploy-stage"
                 tabIndex={0}
-                data-tooltip="Caddy serves the static console, obtains and renews its HTTPS certificate, redirects HTTP to HTTPS, and routes API traffic. It is not an inference or attestation component."
+                data-tooltip="Caddy obtains and renews the API certificate, redirects HTTP to HTTPS, and routes API traffic. Vercel serves the frontend. Caddy is not an inference or attestation component."
               >
                 <span>2 · public edge</span>
                 <Network />
@@ -386,6 +462,38 @@ export default function HowItWorksPage() {
               </article>
             </div>
 
+            <div className="caddy-explainer">
+              <div>
+                <h3>Why is any Caddy-like service needed?</h3>
+                <p>
+                  The inference service listens on private ports that should
+                  not be exposed directly. Something on Sunburst must accept
+                  public HTTPS for the API domain, manage its certificate, and
+                  forward valid requests to the right private service. Caddy is
+                  that small routing layer. Removing it would require replacing
+                  those jobs, not moving the large model and SNP virtual machine
+                  into Vercel.
+                </p>
+                <p className="caddy-location">
+                  Exact path: internet <code>:443</code> → Sunburst&apos;s
+                  <code>caddy.service</code> → host-only
+                  <code>127.0.0.1:8479</code> → SNP guest. The installed config
+                  is <code>/etc/caddy/Caddyfile</code>; its version-controlled
+                  source is <code>infra/Caddyfile</code>.
+                </p>
+              </div>
+              <div>
+                <h3>What could replace Caddy?</h3>
+                <p>
+                  Nginx, Traefik, HAProxy, Envoy, or a cloud load balancer can
+                  provide the same broad reverse-proxy role. Caddy is used here
+                  because its configuration is small and HTTPS certificates are
+                  automatic. It is convenient infrastructure, not part of the
+                  cryptographic proof.
+                </p>
+              </div>
+            </div>
+
             <div className="deployment-details">
               <article>
                 <div className="deployment-detail-icon privacy"><LockKeyhole /></div>
@@ -394,11 +502,11 @@ export default function HowItWorksPage() {
                   <p>
                     TLS protects the browser-to-Caddy connection. HPKE adds a
                     second layer from the browser all the way into the verified
-                    TEE, so normal Caddy and host forwarding handles ciphertext,
-                    not chat text. The current guest administrator remains
-                    trusted because its userspace is mutable; the measured,
-                    read-only guest is the production target. The private port
-                    limits network access but does not provide content privacy.
+                    TEE, so Caddy and the normal host forwarding path handle
+                    ciphertext, not chat text. The live guest&apos;s measured boot
+                    and read-only dm-verity volumes bind its approved server and
+                    model files. The private port limits network access but does
+                    not itself provide content privacy.
                   </p>
                 </div>
               </article>
