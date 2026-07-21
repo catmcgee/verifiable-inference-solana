@@ -41,7 +41,7 @@ and hashing candidate values.
 - **Claude proxy:** measures attested-proxy overhead. Anthropic sees plaintext,
   and Claude inference is not verified.
 All five registry models are live inside the 832 GiB SNP guest: BitNet, 8B Q4,
-8B Q8, 70B Q4, and GLM-5.2 Q4. The browser exposes 1,244 unique request records
+8B Q8, 70B Q4, and GLM-5.2 Q4. The browser exposes 1,254 unique request records
 plus session measurements.
 
 ## Current trust boundary

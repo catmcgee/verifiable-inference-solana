@@ -1,0 +1,13 @@
+{
+  "n_per_cell": 10,
+  "grid": {
+    "leg": ["B"],
+    "model": ["glm-5.2-q4"],
+    "prompt_tokens": [16],
+    "output_tokens": [128],
+    "threads": [64],
+    "concurrency": [1],
+    "input_mode": ["tls"],
+    "numa_policy": ["guest-single-numa"]
+  }
+}

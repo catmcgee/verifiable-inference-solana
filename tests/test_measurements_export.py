@@ -37,6 +37,12 @@ class MeasurementsExportTests(unittest.TestCase):
         for row in throughput["open_models"].values():
             self.assertGreater(row["without_tee_tok_s"], 0)
             self.assertGreater(row["snp_tee_tok_s"], 0)
+        glm = throughput["featured_glm"]
+        self.assertEqual(glm["model"], "glm-5.2-q4")
+        self.assertEqual(glm["samples_per_route"], 8)
+        self.assertGreater(glm["without_tee_tok_s"], 0)
+        self.assertGreater(glm["snp_tee_tok_s"], 0)
+        self.assertIn("not an encryption-only tax", glm["note"])
         self.assertGreater(throughput["claude_api"]["direct_tok_s"], 0)
         self.assertGreater(throughput["claude_api"]["snp_proxy_tok_s"], 0)
 

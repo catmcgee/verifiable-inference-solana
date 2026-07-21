@@ -10,10 +10,12 @@ Access: `ssh sunburst` → 213.239.141.40, user `ubuntu`, Ubuntu 24.04 LTS
 > `/dev/sev` present, `/sys/module/kvm_amd/parameters/sev_snp=Y`. `/dev/sev-guest`
 > is absent (this is the host, not a guest). Decision-table row achieved:
 > **Row 1 host-control. SNP guests now boot** with the matched AMDSEV OVMF/QEMU
-> path, produce VMPL0 reports, and serve all four measured local models. The
+> path, produce VMPL0 reports, and serve all five measured local models. The
 > current public boot is `grade=snp` and verifies report -> VCEK -> ASK/ARK;
-> exact cloned-disk plain/SNP inference results live in
+> exact cloned-disk plain/SNP inference results for the first four models live in
 > `runs/legA-snp-twin-full.jsonl` and `runs/legB-snp-single-full.jsonl`.
+> GLM-5.2 Q4 production-route measurements live in `runs/glm-bench.jsonl`
+> (bare metal, no TEE) and `runs/glm-snp-route.jsonl` (measured SNP guest).
 > The older SEV-ES data remains a distinct historical experiment and is still
 > labeled `launch-only`; it is not relabeled or pooled with the SNP twin.
 > STREAM both SEV states: SEV-off (plain VM) 346.19 GB/s vs SEV-ES 256.10 GB/s =

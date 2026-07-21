@@ -25,6 +25,7 @@ COMPLETE = {
     "legB-snp-single-full.jsonl": 160,
     "legB-snp-concurrency-isolated.jsonl": 160,
     "legB-snp-hpke-bound.jsonl": 40,
+    "glm-snp-route.jsonl": 10,
     "legC-full.jsonl": 128,
 }
 

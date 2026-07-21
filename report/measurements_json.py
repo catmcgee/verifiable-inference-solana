@@ -35,6 +35,12 @@ def _med(xs):
     return round(st.median(xs), 3) if xs else None
 
 
+def _artifact_after_warmups(rows: list[dict], count: int = 2) -> list[dict]:
+    """Drop chronological warm-ups from one intentionally single-cell artifact."""
+    ordered = sorted(rows, key=lambda row: (row["ts"], row["run_id"]))
+    return ordered[min(count, len(ordered)) :]
+
+
 def _all_request_rows() -> tuple[list[dict], int]:
     """Return every unique frozen-schema request across all run artifacts.
 
@@ -230,6 +236,50 @@ def main() -> None:
             "different amounts of work per generated token."
         ),
     }
+
+    # GLM is too large to co-reside in both environments. Compare the frozen
+    # 64-thread bare-metal route artifact with the current 64-vCPU measured SNP
+    # route. This is application-route throughput, not an isolated TEE tax.
+    glm_without_tee = _artifact_after_warmups(_rows("glm-bench.jsonl"))
+    glm_snp = _artifact_after_warmups(_rows("glm-snp-route.jsonl"))
+    if glm_without_tee and glm_snp:
+        glm_without_tee_tok_s = _med(
+            row["tokens_per_s"] for row in glm_without_tee
+        )
+        glm_snp_tok_s = _med(row["tokens_per_s"] for row in glm_snp)
+        out["route_throughput"]["featured_glm"] = {
+            "model": "glm-5.2-q4",
+            "without_tee_tok_s": glm_without_tee_tok_s,
+            "snp_tee_tok_s": glm_snp_tok_s,
+            "observed_slowdown_pct": round(
+                (glm_without_tee_tok_s - glm_snp_tok_s)
+                / glm_without_tee_tok_s
+                * 100,
+                1,
+            ),
+            "samples_per_route": min(len(glm_without_tee), len(glm_snp)),
+            "shape": {
+                "threads": 64,
+                "requested_output_tokens": 128,
+                "concurrency": 1,
+                "input_mode": "tls",
+            },
+            "without_tee_environment": "bare metal, no TEE",
+            "snp_tee_environment": "measured SEV-SNP guest",
+            "snp_actual_output_tokens": {
+                "min": min(row["output_tokens"] for row in glm_snp),
+                "max": max(row["output_tokens"] for row in glm_snp),
+            },
+            "note": (
+                "Production-route comparison at 64 threads. The no-TEE "
+                "baseline is bare metal and the TEE route is a measured SNP "
+                "guest, so the observed difference includes virtualization "
+                "and run-date variation; it is not an encryption-only tax. "
+                "Both routes used a 128-token output cap. GLM stopped early "
+                "on some SNP requests, so throughput uses llama.cpp's "
+                "engine-reported decode rate."
+            ),
+        }
     if snp_tax:
         out["snp_twin"] = {
             "by_model": {
@@ -380,7 +430,7 @@ def main() -> None:
         ),
         "warmups_excluded": str(len(curated_warmups)),
         "leg_c_rows": f"runs/legC-full.jsonl ({len(c_raw)} raw)",
-        "measured": "2026-07-16 to 2026-07-17",
+        "measured": "2026-07-16 to 2026-07-21",
     }
 
     web = ROOT / "web" / "public"

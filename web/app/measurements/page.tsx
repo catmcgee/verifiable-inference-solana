@@ -48,6 +48,23 @@ interface RouteThroughput {
       samples_per_route?: number;
     }
   >;
+  featured_glm?: {
+    model?: string;
+    without_tee_tok_s?: number;
+    snp_tee_tok_s?: number;
+    observed_slowdown_pct?: number;
+    samples_per_route?: number;
+    shape?: {
+      threads?: number;
+      requested_output_tokens?: number;
+      concurrency?: number;
+      input_mode?: string;
+    };
+    without_tee_environment?: string;
+    snp_tee_environment?: string;
+    snp_actual_output_tokens?: { min?: number; max?: number };
+    note?: string;
+  };
   claude_api?: {
     model?: string;
     direct_tok_s?: number;
@@ -191,6 +208,7 @@ function Hero({ doc }: { doc: MeasurementsDoc }) {
     },
   );
   const claude = throughput?.claude_api;
+  const glm = throughput?.featured_glm;
   const shape = throughput?.shape;
   return (
     <section className="m-section m-hero">
@@ -202,6 +220,38 @@ function Hero({ doc }: { doc: MeasurementsDoc }) {
         below, so these numbers answer how quickly the response continues once
         it starts.
       </p>
+      {glm && (
+        <article className="glm-throughput-feature">
+          <div className="glm-feature-copy">
+            <span>Most important local model</span>
+            <h2>GLM-5.2 Q4 route throughput</h2>
+            <p>
+              The same 436 GB model on the no-TEE route and inside the measured
+              SNP guest.
+            </p>
+          </div>
+          <div className="glm-route-value">
+            <span>without TEE · bare metal</span>
+            <strong>{fmtTok(glm.without_tee_tok_s)}</strong>
+            <small>tokens / second</small>
+          </div>
+          <div className="glm-route-value tee">
+            <span>inside measured SNP TEE</span>
+            <strong>{fmtTok(glm.snp_tee_tok_s)}</strong>
+            <small>tokens / second</small>
+          </div>
+          <div className="glm-route-gap">
+            <strong>{fmtPct(glm.observed_slowdown_pct)}</strong>
+            <span>lower on the observed SNP route</span>
+          </div>
+          <p className="glm-feature-note">
+            {glm.samples_per_route ?? DASH} measured runs per route after warm-ups
+            · {glm.shape?.threads ?? DASH} threads · {glm.shape?.requested_output_tokens ?? DASH}-token cap.
+            The environments are not exact twins, so this is a production-route
+            comparison—not an encryption-only tax.
+          </p>
+        </article>
+      )}
       <div className="route-throughput-grid">
         <article className="route-throughput-panel open-routes">
           <div className="route-throughput-heading">
@@ -237,10 +287,6 @@ function Hero({ doc }: { doc: MeasurementsDoc }) {
               </div>
             ))}
           </div>
-          <p className="route-panel-note">
-            GLM-5.2 Q4 is live, but it was added after this controlled benchmark
-            and does not yet have a matched pair.
-          </p>
         </article>
 
         <article className="route-throughput-panel claude-routes">
