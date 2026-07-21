@@ -150,16 +150,15 @@ export default function HowItWorksPage() {
                 <span>It identifies software and a boot, not a person or login.</span>
               </article>
               <article className="state-item target">
-                <div className="state-title"><Activity size={18} /><b>How long it lasts</b></div>
-                <h3>One boot key can sign many inferences</h3>
+                <div className="state-title"><Activity size={18} /><b>Temporary signing key</b></div>
+                <h3>Created when the service starts</h3>
                 <p>
-                  The key remains in memory while that guest is running. A
-                  reboot creates a new key and therefore a new boot identity,
-                  even when the approved measurement is unchanged. The old
-                  public records remain as history, but the old private key is
-                  not saved.
+                  Inside the TEE, the service creates an Ed25519 keypair in
+                  memory. Its private key is never saved or sent anywhere; the
+                  attested public key can verify many inference receipts. A
+                  service restart or TEE reboot creates a new key.
                 </p>
-                <span>Reboot → new boot key → new Attestation PDA.</span>
+                <span>Restart → new key → new Attestation PDA.</span>
               </article>
             </div>
             <p className="tee-definition">
@@ -270,7 +269,7 @@ export default function HowItWorksPage() {
 
           <section className="how-section solana-section">
             <div className="eyebrow">Solana state</div>
-            <h2>One program, one boot account, many inference accounts</h2>
+            <h2>One program, one attested key account, many inference accounts</h2>
             <p className="solana-lede">
               Solana does not run the model or receive chat text. It keeps a
               public link from a TEE boot key to one attestation record and its
@@ -358,7 +357,7 @@ export default function HowItWorksPage() {
                 <div className="solana-accounts">
                   <span className="solana-column-label">Program-owned PDAs</span>
                   <article className="attestation-account">
-                    <span>one per TEE boot</span>
+                  <span>one per attested TEE key</span>
                     <h3>Attestation PDA</h3>
                     <code>[&quot;attestation&quot;, boot_key]</code>
                     <p>Boot key, SNP measurement and grade, runtime, registry binding, slot, and next receipt index.</p>
@@ -373,7 +372,7 @@ export default function HowItWorksPage() {
               </div>
 
               <div className="solana-transactions">
-                <div><b>01 · once per boot</b><span>Verify the AMD evidence off-chain, then register that boot key in one Attestation PDA.</span></div>
+                <div><b>01 · once per service key</b><span>Verify the AMD evidence off-chain, then register that key in one Attestation PDA.</span></div>
                 <div><b>02 · after generation</b><span>The TEE signs the completed inference hashes with that same in-memory boot key.</span></div>
                 <div><b>03 · successful anchor</b><span>The relay signs the outer transaction. Solana verifies the TEE signature, creates the next Receipt PDA, and increments the counter atomically.</span></div>
               </div>
