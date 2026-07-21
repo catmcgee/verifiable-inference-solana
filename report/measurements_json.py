@@ -131,9 +131,11 @@ def main() -> None:
         }
     out["inference_tax"] = {
         "by_model": tax,
-        "finding": "SEV-ES inference tax ~2% flat across model sizes; far below the "
-        "26% STREAM ceiling and does NOT grow with size (encryption "
-        "penalizes writes; decode is read-dominated).",
+        "finding": (
+            "Historical matched SEV-ES model runs changed by about 2%. "
+            "STREAM is a separate memory-only stress test, not an inference "
+            "slowdown measurement."
+        ),
     }
 
     # --- pricing + throughput per model (from registry) ---
@@ -165,6 +167,14 @@ def main() -> None:
         and r["sev_mode"] == "snp"
         and r["numa_policy"] == "guest-single-numa"
     ]
+    primary_shape = {
+        "threads": 32,
+        "prompt_tokens": 128,
+        "output_tokens": 128,
+        "concurrency": 1,
+        "input_mode": "tls",
+    }
+    primary_open_models = {}
     snp_tax = defaultdict(list)
     for model in sorted({r["model"] for r in plain + snp}):
         for threads in (16, 32):
@@ -185,6 +195,41 @@ def main() -> None:
                     av = _med(r["tokens_per_s"] for r in a)
                     bv = _med(r["tokens_per_s"] for r in b)
                     snp_tax[model].append(round((av - bv) / av * 100, 3))
+
+        def matches_primary_shape(row):
+            return (
+                row["model"] == model
+                and row["threads"] == primary_shape["threads"]
+                and row["prompt_tokens"] == primary_shape["prompt_tokens"]
+                and row["output_tokens"] == primary_shape["output_tokens"]
+                and row["concurrency"] == primary_shape["concurrency"]
+                and row["input_mode"] == primary_shape["input_mode"]
+            )
+
+        primary_plain = [row for row in plain if matches_primary_shape(row)]
+        primary_snp = [row for row in snp if matches_primary_shape(row)]
+        if primary_plain and primary_snp:
+            plain_tok_s = _med(row["tokens_per_s"] for row in primary_plain)
+            snp_tok_s = _med(row["tokens_per_s"] for row in primary_snp)
+            primary_open_models[model] = {
+                "without_tee_tok_s": plain_tok_s,
+                "snp_tee_tok_s": snp_tok_s,
+                "tee_slowdown_pct": round(
+                    (plain_tok_s - snp_tok_s) / plain_tok_s * 100, 1
+                ),
+                "samples_per_route": min(len(primary_plain), len(primary_snp)),
+            }
+
+    out["route_throughput"] = {
+        "unit": "tokens_per_s",
+        "shape": primary_shape,
+        "open_models": primary_open_models,
+        "note": (
+            "Median decode throughput for matched, warmed single-request tests. "
+            "Compare within each model pair; different model families do "
+            "different amounts of work per generated token."
+        ),
+    }
     if snp_tax:
         out["snp_twin"] = {
             "by_model": {
@@ -280,6 +325,40 @@ def main() -> None:
             "raw_n": len(c_raw),
             "note": "E2E is observational when provider stop lengths differ; the matched-shape TTFT delta is the proxy comparison.",
         }
+
+        primary_direct = [
+            row
+            for row in direct
+            if row["prompt_tokens"] == primary_shape["prompt_tokens"]
+            and output_cap(row) == primary_shape["output_tokens"]
+            and row["concurrency"] == primary_shape["concurrency"]
+        ]
+        primary_proxied = [
+            row
+            for row in proxied
+            if row["prompt_tokens"] == primary_shape["prompt_tokens"]
+            and output_cap(row) == primary_shape["output_tokens"]
+            and row["concurrency"] == primary_shape["concurrency"]
+        ]
+        if primary_direct and primary_proxied:
+            direct_tok_s = _med(row["tokens_per_s"] for row in primary_direct)
+            proxied_tok_s = _med(row["tokens_per_s"] for row in primary_proxied)
+            out["route_throughput"]["claude_api"] = {
+                "model": c[0]["model"],
+                "direct_tok_s": direct_tok_s,
+                "snp_proxy_tok_s": proxied_tok_s,
+                "proxy_slowdown_pct": round(
+                    (direct_tok_s - proxied_tok_s) / direct_tok_s * 100, 1
+                ),
+                "samples_per_route": min(
+                    len(primary_direct), len(primary_proxied)
+                ),
+                "note": (
+                    "Anthropic performs inference in both routes. The SNP "
+                    "route adds the attested proxy; the small measured "
+                    "difference is within normal provider and network variation."
+                ),
+            }
 
     # --- on-chain economics, preserving the measured network for each value ---
     cu = json.loads((ROOT / "solana" / "cu-measurements.json").read_text())

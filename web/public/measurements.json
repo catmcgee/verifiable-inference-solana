@@ -33965,7 +33965,7 @@
         "tax_pct": 1.9
       }
     },
-    "finding": "SEV-ES inference tax ~2% flat across model sizes; far below the 26% STREAM ceiling and does NOT grow with size (encryption penalizes writes; decode is read-dominated)."
+    "finding": "Historical matched SEV-ES model runs changed by about 2%. STREAM is a separate memory-only stress test, not an inference slowdown measurement."
   },
   "models": [
     {
@@ -33999,6 +33999,51 @@
       "price_per_1m_out_usdc": 87.8792
     }
   ],
+  "route_throughput": {
+    "unit": "tokens_per_s",
+    "shape": {
+      "threads": 32,
+      "prompt_tokens": 128,
+      "output_tokens": 128,
+      "concurrency": 1,
+      "input_mode": "tls"
+    },
+    "open_models": {
+      "70b-q4": {
+        "without_tee_tok_s": 9.398,
+        "snp_tee_tok_s": 8.853,
+        "tee_slowdown_pct": 5.8,
+        "samples_per_route": 8
+      },
+      "8b-q4": {
+        "without_tee_tok_s": 67.114,
+        "snp_tee_tok_s": 63.671,
+        "tee_slowdown_pct": 5.1,
+        "samples_per_route": 8
+      },
+      "8b-q8": {
+        "without_tee_tok_s": 49.323,
+        "snp_tee_tok_s": 44.633,
+        "tee_slowdown_pct": 9.5,
+        "samples_per_route": 8
+      },
+      "bitnet-2b": {
+        "without_tee_tok_s": 139.892,
+        "snp_tee_tok_s": 130.222,
+        "tee_slowdown_pct": 6.9,
+        "samples_per_route": 8
+      }
+    },
+    "note": "Median decode throughput for matched, warmed single-request tests. Compare within each model pair; different model families do different amounts of work per generated token.",
+    "claude_api": {
+      "model": "claude-haiku-4-5-20251001",
+      "direct_tok_s": 85.202,
+      "snp_proxy_tok_s": 86.158,
+      "proxy_slowdown_pct": -1.1,
+      "samples_per_route": 6,
+      "note": "Anthropic performs inference in both routes. The SNP route adds the attested proxy; the small measured difference is within normal provider and network variation."
+    }
+  },
   "snp_twin": {
     "by_model": {
       "70b-q4": {

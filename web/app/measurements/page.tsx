@@ -30,6 +30,35 @@ interface InferenceTax {
   finding?: string;
 }
 
+interface RouteThroughput {
+  unit?: string;
+  shape?: {
+    threads?: number;
+    prompt_tokens?: number;
+    output_tokens?: number;
+    concurrency?: number;
+    input_mode?: string;
+  };
+  open_models?: Record<
+    string,
+    {
+      without_tee_tok_s?: number;
+      snp_tee_tok_s?: number;
+      tee_slowdown_pct?: number;
+      samples_per_route?: number;
+    }
+  >;
+  claude_api?: {
+    model?: string;
+    direct_tok_s?: number;
+    snp_proxy_tok_s?: number;
+    proxy_slowdown_pct?: number;
+    samples_per_route?: number;
+    note?: string;
+  };
+  note?: string;
+}
+
 interface PricedModel {
   id: string;
   quant?: string;
@@ -71,6 +100,7 @@ interface MeasurementsDoc {
   stream_anchor?: StreamAnchor;
   thread_sweep?: ThreadSweep;
   inference_tax?: InferenceTax;
+  route_throughput?: RouteThroughput;
   models?: PricedModel[];
   leg_c_api?: {
     model?: string;
@@ -141,43 +171,110 @@ function fmtPrice4(v: number | null | undefined): string {
 
 /* ---------- hero ---------- */
 
+const THROUGHPUT_MODEL_ORDER = ["bitnet-2b", "8b-q4", "8b-q8", "70b-q4"];
+
+function routeDifference(value: number | null | undefined): string {
+  if (value == null) return DASH;
+  if (Math.abs(value) < 1.5) return `≈ same (${Math.abs(value).toFixed(1)}% variation)`;
+  return value > 0
+    ? `${value.toFixed(1)}% slower in TEE`
+    : `${Math.abs(value).toFixed(1)}% faster in TEE`;
+}
+
 function Hero({ doc }: { doc: MeasurementsDoc }) {
-  const ceiling = doc.stream_anchor?.sev_es_tax_pct;
-  const taxes = Object.values(doc.inference_tax?.by_model ?? {})
-    .map((m) => m.tax_pct)
-    .filter((v): v is number => v != null);
-  const worst = taxes.length ? Math.max(...taxes) : null;
+  const throughput = doc.route_throughput;
+  const openRows = Object.entries(throughput?.open_models ?? {}).sort(
+    ([left], [right]) => {
+      const leftIndex = THROUGHPUT_MODEL_ORDER.indexOf(left);
+      const rightIndex = THROUGHPUT_MODEL_ORDER.indexOf(right);
+      return (leftIndex < 0 ? 99 : leftIndex) - (rightIndex < 0 ? 99 : rightIndex);
+    },
+  );
+  const claude = throughput?.claude_api;
+  const shape = throughput?.shape;
   return (
     <section className="m-section m-hero">
-      <div className="eyebrow">What the measurements say</div>
+      <div className="eyebrow">Primary measurement · generated tokens per second</div>
+      <h1 className="m-metric-title">How fast each inference route generates text</h1>
       <p className="m-hero-intro">
-        Memory encryption runs automatically while a confidential virtual
-        machine is active; it is not a cost paid once when the TEE starts. The
-        model result below is the useful application number. STREAM is a
-        separate synthetic stress test of raw memory bandwidth.
+        Tokens per second measures generation speed after the first token
+        arrives. Higher is faster. Time to first token is measured separately
+        below, so these numbers answer how quickly the response continues once
+        it starts.
       </p>
-      <div className="m-hero-values">
-        <div className="m-hv actual">
-          <div className="n">
-            {worst != null ? worst.toFixed(1) : DASH}
-            {worst != null && <span className="u">%</span>}
+      <div className="route-throughput-grid">
+        <article className="route-throughput-panel open-routes">
+          <div className="route-throughput-heading">
+            <div>
+              <h2>Open-source model routes</h2>
+              <p>Same model and CPU: without TEE versus inside AMD SEV-SNP.</p>
+            </div>
+            <span className="route-sample">
+              {shape?.threads ?? DASH} threads · {shape?.concurrency ?? DASH} request
+            </span>
           </div>
-          <div className="m-hv-label">matched model slowdown</div>
-        </div>
-        <div className="m-vs">vs</div>
-        <div className="m-hv context">
-          <div className="n">
-            {ceiling != null ? ceiling.toFixed(1) : DASH}
-            {ceiling != null && <span className="u">%</span>}
+          <div className="route-throughput-table" role="table" aria-label="Open-source model route throughput">
+            <div className="route-throughput-row header" role="row">
+              <span role="columnheader">model</span>
+              <span role="columnheader">models without TEE</span>
+              <span role="columnheader">models in TEE</span>
+              <span role="columnheader">difference</span>
+            </div>
+            {openRows.map(([model, row]) => (
+              <div className="route-throughput-row" role="row" key={model}>
+                <span className="route-model" role="cell">{model}</span>
+                <span className="route-tps" role="cell">
+                  <strong>{fmtTok(row.without_tee_tok_s)}</strong>
+                  <small><span className="route-mobile-label">without TEE · </span>tok/s</small>
+                </span>
+                <span className="route-tps tee" role="cell">
+                  <strong>{fmtTok(row.snp_tee_tok_s)}</strong>
+                  <small><span className="route-mobile-label">SNP TEE · </span>tok/s</small>
+                </span>
+                <span className="route-difference" role="cell">
+                  {routeDifference(row.tee_slowdown_pct)}
+                </span>
+              </div>
+            ))}
           </div>
-          <div className="m-hv-label">SEV-ES synthetic RAM drop</div>
-        </div>
+          <p className="route-panel-note">
+            GLM-5.2 Q4 is live, but it was added after this controlled benchmark
+            and does not yet have a matched pair.
+          </p>
+        </article>
+
+        <article className="route-throughput-panel claude-routes">
+          <div className="route-throughput-heading">
+            <div>
+              <h2>Claude API routes</h2>
+              <p>Claude Haiku, matched request shape.</p>
+            </div>
+          </div>
+          <div className="claude-route-values">
+            <div className="claude-route-value">
+              <span>Claude direct API</span>
+              <strong>{fmtTok(claude?.direct_tok_s)}</strong>
+              <small>tokens / second</small>
+            </div>
+            <div className="claude-route-value tee">
+              <span>Claude through TEE proxy</span>
+              <strong>{fmtTok(claude?.snp_proxy_tok_s)}</strong>
+              <small>tokens / second</small>
+            </div>
+          </div>
+          <div className="route-verdict">
+            {routeDifference(claude?.proxy_slowdown_pct)}
+          </div>
+          <p className="route-panel-note">
+            Anthropic runs the model in both cases. The second route adds our
+            attested TEE proxy; the observed difference is within normal API
+            and network variation.
+          </p>
+        </article>
       </div>
-      <p className="m-finding">
-        The largest matched model slowdown was {fmtPct(worst)}; one model was
-        slightly faster within run-to-run variation. The {fmtPct(ceiling)}
-        STREAM result measures sustained SEV-ES memory traffic, not TEE startup
-        time and not the live SNP deployment&apos;s inference tax.
+      <p className="m-finding route-method">
+        {throughput?.note} Test shape: 128-token prompt, 128 generated tokens,
+        one concurrent request, with warm-ups excluded.
       </p>
     </section>
   );
@@ -199,8 +296,15 @@ function AnchorBars({ a }: { a: StreamAnchor | undefined }) {
   const max = Math.max(...rows.map((r) => r.v ?? 0), 1);
   return (
     <section className="m-section">
-      <div className="eyebrow">
-        Synthetic STREAM memory bandwidth · SEV-ES test
+      <div className="eyebrow">Diagnostic only · synthetic memory-bandwidth test</div>
+      <div className="m-diagnostic-explainer">
+        <strong>What the 26% means</strong>
+        <span>
+          STREAM continuously copies data through memory without running an AI
+          model. In this historical SEV-ES test, encrypted RAM moved 26% less
+          data per second. It is not paid when a TEE opens, it is not charged
+          per request, and it does not mean inference is 26% slower.
+        </span>
       </div>
       <div className="bars">
         {rows.map((r) => (
@@ -222,9 +326,8 @@ function AnchorBars({ a }: { a: StreamAnchor | undefined }) {
         ))}
       </div>
       <p className="m-chart-note">
-        This is continuous bandwidth while the VM runs—not a per-request or
-        per-launch charge. It is a useful stress ceiling, not the expected
-        slowdown for model inference.
+        Kept as a low-level hardware diagnostic. Use the tokens-per-second
+        route comparison at the top of this page to judge application speed.
       </p>
     </section>
   );
@@ -379,7 +482,7 @@ function TaxTable({ tax }: { tax: InferenceTax | undefined }) {
   const rows = Object.entries(tax?.by_model ?? {});
   return (
     <section className="m-section">
-      <div className="eyebrow">TEE speed by model</div>
+      <div className="eyebrow">Historical context · older SEV-ES model test</div>
       {rows.length === 0 ? (
         <div className="p-detail">no per-model rows.</div>
       ) : (
@@ -405,9 +508,10 @@ function TaxTable({ tax }: { tax: InferenceTax | undefined }) {
         </table>
       )}
       <div className="p-note">
-        Higher tokens per second is faster. A positive difference is the TEE
-        slowdown; a negative value means that run was slightly faster inside
-        the TEE, which is normal run-to-run measurement noise.
+        This older SEV-ES experiment produced the roughly 2% figure previously
+        shown at the top. It is not the live SEV-SNP route. The primary table
+        now uses the matched SNP data; negative values here are normal
+        run-to-run measurement noise.
       </div>
     </section>
   );
@@ -890,17 +994,17 @@ export default function MeasurementsPage() {
           {doc && (
             <>
               <Hero doc={doc} />
-              <AnchorBars a={doc.stream_anchor} />
               <SweepChart sweep={doc.thread_sweep} />
               <div className="m-grid2">
-                <TaxTable tax={doc.inference_tax} />
+                <SnpTwinTable twin={doc.snp_twin} />
                 <PricingTable models={doc.models} />
               </div>
-              <SnpTwinTable twin={doc.snp_twin} />
               <div className="m-grid2">
                 <Onchain oc={doc.onchain_devnet} />
                 <Misc doc={doc} />
               </div>
+              <TaxTable tax={doc.inference_tax} />
+              <AnchorBars a={doc.stream_anchor} />
               <RawMeasurements
                 doc={doc}
                 initialLeg="all"

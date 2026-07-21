@@ -24,6 +24,22 @@ class MeasurementsExportTests(unittest.TestCase):
         self.assertEqual(measurements["devnet"]["post_receipt_cu"], 13_580)
         self.assertEqual(set(measurements), {"program_id", "devnet"})
 
+    def test_primary_throughput_covers_every_measured_route(self) -> None:
+        measurements = json.loads(
+            (ROOT / "web" / "public" / "measurements.json").read_text()
+        )
+        throughput = measurements["route_throughput"]
+        self.assertEqual(throughput["unit"], "tokens_per_s")
+        self.assertEqual(
+            set(throughput["open_models"]),
+            {"bitnet-2b", "8b-q4", "8b-q8", "70b-q4"},
+        )
+        for row in throughput["open_models"].values():
+            self.assertGreater(row["without_tee_tok_s"], 0)
+            self.assertGreater(row["snp_tee_tok_s"], 0)
+        self.assertGreater(throughput["claude_api"]["direct_tok_s"], 0)
+        self.assertGreater(throughput["claude_api"]["snp_proxy_tok_s"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
