@@ -1,7 +1,6 @@
 {
   "license": "ISC",
   "scripts": {
-    "devnet:attestation": "node scripts/register-attestation-live.ts",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },

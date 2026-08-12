@@ -1,0 +1,18 @@
+[Unit]
+Description=Reconcile the current verified TEE service key on Solana devnet
+After=network-online.target vinfer-measured-vm.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/verified-inference
+Environment=VINFER_URL=http://127.0.0.1:8479
+Environment=VINFER_SOLANA_RPC=https://api.devnet.solana.com
+Environment=VINFER_SOLANA_PAYER=/home/ubuntu/.config/vinfer/devnet-deployer.json
+ExecStart=/home/ubuntu/verified-inference/.venv/bin/python -m server.receipts.registrar
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only

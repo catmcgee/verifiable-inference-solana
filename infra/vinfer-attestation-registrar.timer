@@ -1,0 +1,12 @@
+[Unit]
+Description=Check for a rotated verified TEE service key
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=true
+Unit=vinfer-attestation-registrar.service
+
+[Install]
+WantedBy=timers.target

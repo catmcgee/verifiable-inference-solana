@@ -78,7 +78,7 @@ jobs:
           if grep -Eq '^(pyproject\.toml$|uv\.lock$)' "$RUNNER_TEMP/changed-files"; then
             echo 'dependencies=true' >> "$GITHUB_OUTPUT"
           fi
-          if grep -Eq '^infra/.*\.service$' "$RUNNER_TEMP/changed-files"; then
+          if grep -Eq '^infra/.*\.(service|timer)$' "$RUNNER_TEMP/changed-files"; then
             echo 'units=true' >> "$GITHUB_OUTPUT"
           fi
           if grep -qx 'infra/Caddyfile' "$RUNNER_TEMP/changed-files"; then
@@ -120,12 +120,14 @@ jobs:
             --exclude .git \
             --exclude .venv \
             --exclude .vercel \
+            --exclude solana/.devnet-deployer.json \
             ./ sunburst-deploy:/home/ubuntu/verified-inference/
           rsync -az --delete \
             --exclude .env.local \
             --exclude .git \
             --exclude .venv \
             --exclude .vercel \
+            --exclude solana/.devnet-deployer.json \
             ./ vinfer-guest:/home/ubuntu/verified-inference/
 
       - name: Update dependencies
@@ -137,7 +139,7 @@ jobs:
       - name: Install service definitions
         if: steps.changes.outputs.units == 'true'
         run: |
-          ssh sunburst-deploy 'sudo install -o root -g root -m 0644 /home/ubuntu/verified-inference/infra/vinfer-leg-a-models.service /home/ubuntu/verified-inference/infra/vinfer-leg-a-origin.service /home/ubuntu/verified-inference/infra/vinfer-receipt-relay.service /home/ubuntu/verified-inference/infra/vinfer-measured-vm.service /home/ubuntu/verified-inference/infra/vinfer-builder-vm.service /etc/systemd/system/ && sudo systemctl daemon-reload'
+          ssh sunburst-deploy 'sudo install -o root -g root -m 0644 /home/ubuntu/verified-inference/infra/vinfer-leg-a-models.service /home/ubuntu/verified-inference/infra/vinfer-leg-a-origin.service /home/ubuntu/verified-inference/infra/vinfer-receipt-relay.service /home/ubuntu/verified-inference/infra/vinfer-measured-vm.service /home/ubuntu/verified-inference/infra/vinfer-builder-vm.service /home/ubuntu/verified-inference/infra/vinfer-attestation-registrar.service /home/ubuntu/verified-inference/infra/vinfer-attestation-registrar.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart vinfer-receipt-relay && sudo systemctl enable --now vinfer-attestation-registrar.timer'
 
       - name: Reload Caddy
         if: steps.changes.outputs.caddy == 'true'
@@ -164,3 +166,7 @@ jobs:
           curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/v1/models >/dev/null
           curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/vinfer-a/v1/models >/dev/null
           curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/vinfer-c/v1/models >/dev/null
+
+      - name: Reconcile verified service key
+        run: |
+          ssh sunburst-deploy 'sudo systemctl start vinfer-attestation-registrar.service'
