@@ -9,7 +9,7 @@ category: ai_ml
 version: v1
 routing:
   type: proxy
-  url: https://vinfer.usefrogpay.com/
+  url: https://vinfer.mcgee.cat/
   auth:
     method: header
     key: Authorization

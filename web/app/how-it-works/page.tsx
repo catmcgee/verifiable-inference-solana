@@ -395,7 +395,7 @@ export default function HowItWorksPage() {
               at <code>verified-inference.vercel.app</code>. The models and TEE
               run on the Sunburst bare-metal server, so that server still needs
               a safe public HTTPS entry point for its API. Caddy provides it at
-              <code>vinfer.usefrogpay.com</code>.
+              <code>vinfer.mcgee.cat</code>.
             </p>
 
             <div className="hosting-split">
