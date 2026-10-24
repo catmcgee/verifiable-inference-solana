@@ -163,9 +163,9 @@ jobs:
 
       - name: Verify public routes
         run: |
-          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/v1/models >/dev/null
-          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/vinfer-a/v1/models >/dev/null
-          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.usefrogpay.com/vinfer-c/v1/models >/dev/null
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.mcgee.cat/v1/models >/dev/null
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.mcgee.cat/vinfer-a/v1/models >/dev/null
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 https://vinfer.mcgee.cat/vinfer-c/v1/models >/dev/null
 
       - name: Reconcile verified service key
         run: |
