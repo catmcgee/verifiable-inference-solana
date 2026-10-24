@@ -30,3 +30,6 @@ vinfer.mcgee.cat {
 		-Server
 	}
 }
+
+# Other sites on this machine (e.g. channels.mcgee.cat) live in their own files.
+import /etc/caddy/sites/*.caddy
