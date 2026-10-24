@@ -1,4 +1,4 @@
-vinfer.usefrogpay.com {
+vinfer.mcgee.cat {
 	encode zstd gzip
 	@body_too_large header_regexp Content-Length ^[0-9]{7,}$
 	respond @body_too_large "request body too large" 413

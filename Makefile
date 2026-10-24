@@ -2,7 +2,7 @@
 # If any step needs manual editing beyond models.yaml, that step is a bug.
 
 RUNS ?= runs/legA-full.jsonl
-BASE_URL ?= https://vinfer.usefrogpay.com
+BASE_URL ?= https://vinfer.mcgee.cat
 PAID_URL ?= https://pay.example.invalid
 PAY_NETWORK ?= localnet
 PAY_MAX_REQUEST_USD ?= 0.50
